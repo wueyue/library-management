@@ -55,7 +55,7 @@ mvn test
 
 ## 本次验证结果
 
-Java 21 下编译、JAR 打包成功，15 项单元及 HTTP 接口测试通过。8 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL 受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
+Java 21 下编译、JAR 打包成功，22 项领域、业务转换及 HTTP 接口测试通过。8 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL 受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
 
 ## 代码结构与实现说明
 
@@ -64,12 +64,18 @@ src/main/java/com/example/library/
 ├── LibraryApplication.java
 ├── controller/
 │   ├── BookController.java
-│   ├── StudentController.java
+│   ├── ReaderController.java
 │   └── LoanController.java
-├── model/Models.java
+├── model/
+│   ├── Book.java
+│   ├── Reader.java
+│   └── Loan.java
+├── dto/
+│   ├── Models.java
+│   └── ResponseMapper.java
 ├── service/
 │   ├── BookService.java
-│   ├── StudentService.java
+│   ├── ReaderService.java
 │   ├── LoanService.java
 │   └── WriteTransactionExecutor.java
 ├── repository/LibraryRepository.java
@@ -80,15 +86,16 @@ src/main/java/com/example/library/
 ```
 
 - `controller`：HTTP 接口、入参校验与接口注释。
-- `model`：请求、响应及分页数据定义。
-- `service`：BookService 处理图书录入/查询，StudentService 处理学生录入/身份解析，LoanService 处理借阅/归还/当前借阅。WriteTransactionExecutor 复用写事务与重试逻辑。
+- `model`：Book、Reader、Loan 三个独立领域类，包含字段、构造方法、访问器及状态变更方法。
+- `dto`：API 请求/响应结构，以及领域对象到响应的映射。
+- `service`：BookService 处理图书录入/查询，ReaderService 处理读者录入/身份解析，LoanService 处理借阅/归还/当前借阅。WriteTransactionExecutor 复用写事务与重试逻辑。
 - `repository`：参数化 SQL 与数据库访问。
 - `exception`：业务异常与统一异常响应。
 - `filter`：请求 ID 生成与追踪。
 - `src/main/resources/db/migration/`：Flyway 数据库迁移。
 - `src/test/java/com/example/library/`：分别在 controller、service、integration 包中组织接口、业务及数据库测试。
 
-三个 Controller 分别仅处理图书、学生和借阅接口；LoanController 额外调用 StudentService 解析演示身份。各 Service 直接调用 Repository，借阅与库存修改仍在同一事务内。
+三个 Controller 分别仅处理图书、读者和借阅接口；LoanController 额外调用 ReaderService 解析演示身份。各 Service 直接调用 Repository，借阅与库存修改仍在同一事务内。
 
 事务通过共享 WriteTransactionExecutor 中的 TransactionTemplate 显式执行，避免同类调用导致声明式事务失效。隔离级别 READ COMMITTED，统一先锁图书再锁借阅。数据库时钟生成借还时间，确保 Loan 的 borrow_time / return_time 与对应 update_time 完全一致。未实现图书/读者修改接口，未来新增信息更新时必须同步设置 update_time。
 
@@ -111,7 +118,7 @@ src/main/java/com/example/library/
 
 原始文档未指定数据库、身份认证和具体接口格式，本文将这些内容作为实现假设。电子书库存代表并发借阅许可；每个图书版本对应一个独立 book_id；归还后允许再次借阅。
 
-本次不实现注册登录、预约、到期自动归还、罚款、电子书内容交付及已有库存调整接口。支持图书和学生录入，也可使用种子数据初始化。
+本次不实现注册登录、预约、到期自动归还、罚款、电子书内容交付及已有库存调整接口。支持图书和读者录入，也可使用种子数据初始化。
 
 ## 2. 业务规则
 
@@ -153,7 +160,7 @@ HTTP 层负责协议转换和错误映射；服务层负责借阅与归还流程
 
 ### 4.2 Reader
 
-学生以 student_number（学号）作为业务唯一标识；id 作为内部主键和借阅外键。
+读者以 student_number（学号）作为业务唯一标识；id 作为内部主键和借阅外键。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -612,9 +619,9 @@ sequenceDiagram
 保留 available_copies 使库存读取和条件扣减简单，代价是必须维护跨表一致性；图书行锁便于审查和验证，代价是热门图书写请求串行执行。对于本次作业规模，这是清晰且可维护的选择。后续若引入库存管理、自动归还或批量借阅，需要重新审查所有写入路径和锁顺序。
 
 
-## 新增：图书与学生录入接口
+## 新增：图书与读者录入接口
 
-学生沿用 Reader 实体与 readers 表，姓名和学号均必填，以学号唯一识别学生，允许同名。两接口用于演示，无需身份头；生产环境的图书和学生管理需要管理员授权。图书每次 POST 创建独立 UUID，不按书名去重；学生按学号去重，不提供请求键幂等。
+读者沿用 Reader 实体与 readers 表，姓名和学号均必填，以学号唯一识别读者，允许同名。两接口用于演示，无需身份头；生产环境的图书和读者管理需要管理员授权。图书每次 POST 创建独立 UUID，不按书名去重；读者按学号去重，不提供请求键幂等。
 
 ### POST /api/v1/books/insert
 
@@ -633,9 +640,9 @@ sequenceDiagram
 
 服务端生成 id 和时间，available_copies 初始化为 total_copies。title、author 去除首尾空白；客户端不可提交 id、available_copies 或时间字段。create_time 与 update_time 在创建时相等。
 
-### POST /api/v1/students/insert
+### POST /api/v1/readers/insert
 
-录入学生，name 为必填非空白字符串，最多 100 字；student_number 为必填非空白字符串，最多 64 字。两者保存时去除首尾空白；学号大小写敏感，以字符串保存并保留前导零。数据库唯一约束防止重复学号，重复时返回 409 STUDENT_NUMBER_ALREADY_EXISTS。成功返回 201：
+录入读者，name 为必填非空白字符串，最多 100 字；student_number 为必填非空白字符串，最多 64 字。两者保存时去除首尾空白；学号大小写敏感，以字符串保存并保留前导零。数据库唯一约束防止重复学号，重复时返回 409 STUDENT_NUMBER_ALREADY_EXISTS。成功返回 201：
 
 ```json
 {
@@ -652,8 +659,8 @@ sequenceDiagram
 ### 手动测试闭环
 
 ```bash
-# 1. 创建学生，复制响应 id 作为后续 X-Reader-Id
-curl -X POST http://localhost:8080/api/v1/students/insert \
+# 1. 创建读者，复制响应 id 作为后续 X-Reader-Id
+curl -X POST http://localhost:8080/api/v1/readers/insert \
   -H 'Content-Type: application/json' -d '{"name":"张三","student_number":"20260001"}'
 
 # 2. 创建图书，复制响应 id 作为借阅的 book_id
@@ -663,22 +670,46 @@ curl -X POST http://localhost:8080/api/v1/books/insert \
 
 # 3. 将占位符替换为上面真实返回的 UUID
 curl -X POST http://localhost:8080/api/v1/loans \
-  -H 'Content-Type: application/json' -H 'X-Reader-Id: <student_id>' \
+  -H 'Content-Type: application/json' -H 'X-Reader-Id: <reader_id>' \
   -d '{"book_id":"<book_id>"}'
 
 # 4. 再次借阅应返回 409；归还后可再次借阅
 curl -X POST http://localhost:8080/api/v1/loans/<loan_id>/return \
-  -H 'X-Reader-Id: <student_id>'
+  -H 'X-Reader-Id: <reader_id>'
 ```
 
 自动化测试覆盖录入成功、必填/空白/负库存/超长姓名/禁止客户端设置库存和 ID；真实数据库测试另验证录入→借阅→当前借阅→归还的闭环与初始库存、时间字段。
 
 ## 学号升级与兼容设计
 
-新增 student_number：姓名可以重复，学号必须唯一。录入接口的 student_number 为必填字段，返回对象同样包含该字段。现有 X-Reader-Id 继续使用学生内部 UUID；学号用于业务识别和录入去重，不作为认证凭证。借阅记录的 reader_id 外键保持有效。
+新增 student_number：姓名可以重复，学号必须唯一。录入接口的 student_number 为必填字段，返回对象同样包含该字段。现有 X-Reader-Id 继续使用读者内部 UUID；学号用于业务识别和录入去重，不作为认证凭证。借阅记录的 reader_id 外键保持有效。
 
-迁移采用 `V2__add_student_number.sql`，不修改已执行的 V1 校验和。新库依次执行 V1、V2；旧库先添加字段，再给旧学生分配 `LEGACY-<原 UUID>` 唯一临时编号，更新 update_time，最后施加非空和唯一约束。临时编号不是真实学号，上线前应按实际学生名册核对并补录；修改学号时须同时更新 update_time。本文建表 SQL 展示最终结构，实际升级以 Flyway 迁移为准。
+迁移采用 `V2__add_student_number.sql`，不修改已执行的 V1 校验和。新库依次执行 V1、V2；旧库先添加字段，再给旧读者分配 `LEGACY-<原 UUID>` 唯一临时编号，更新 update_time，最后施加非空和唯一约束。临时编号不是真实学号，上线前应按实际读者名册核对并补录；修改学号时须同时更新 update_time。本文建表 SQL 展示最终结构，实际升级以 Flyway 迁移为准。
 
-录入相同学号的并发请求由唯一约束保证最多一条成功；冲突请求回滚并返回 409。学号去除首尾空白后比较，大小写敏感，前导零保留。例如 `00123` 和 `123` 是不同学号。同名且不同学号可分别创建学生。
+录入相同学号的并发请求由唯一约束保证最多一条成功；冲突请求回滚并返回 409。学号去除首尾空白后比较，大小写敏感，前导零保留。例如 `00123` 和 `123` 是不同学号。同名且不同学号可分别创建读者。
 
 种子数据使用学号 20260001；已有旧种子 UUID 不会被 seed.sql 自动覆盖，需按上述迁移说明补录。
+
+## 独立领域模型与持久化映射
+
+`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的不可变 Java class，使用私有字段、构造方法和 getter，与 API DTO 分离。API 请求响应仍使用 `dto/Models.java` 中的类型；响应分别为 BookResponse、ReaderResponse、LoanResponse。`dto/ResponseMapper.java` 负责领域对象到响应的显式转换。
+
+```mermaid
+flowchart LR
+    A[API JSON] --> B[请求 DTO]
+    B --> C[Service 转换并创建领域对象]
+    C --> D[Book / Reader / Loan]
+    D --> E[Repository 参数化 SQL]
+    E --> F[(PostgreSQL)]
+    F --> G[Repository 映射领域对象]
+    G --> H[ResponseMapper]
+    H --> I[响应 DTO / JSON]
+```
+
+- Book.create 初始化 ID、规范化书名作者，并使可借库存等于总库存；borrowCopy、returnCopy 返回变更后的对象并检查库存范围。
+- Reader.create 规范化姓名和学号，保留学号前导零；全局唯一性由数据库负责。ReaderController、ReaderService、CreateReaderRequest、ReaderResponse 统一采用 Reader 命名。
+- Loan.borrow 创建借阅；returnBook 返回归还后的对象，重复归还保留第一次时间。status 根据 returnTime 派生，不单独持久化。
+- Repository 的 createBook、createReader、createLoan、markReturned、decrement、increment 只接受领域对象，不接受请求 DTO。查询也先映射为领域对象，再转换响应；当前借阅使用一次关联查询，避免逐条查询图书。
+- 时间由 Service 在事务中从数据库获取，再传入领域工厂或状态方法；借还操作在拿到图书锁后取时间。模型实例创建、状态变更和持久化仍由原有事务整体保护。
+
+读者录入路径统一为 `POST /api/v1/readers/insert`，请求示例：`{"name":"张三","student_number":"00123"}`。`student_number` 继续表示学号，`STUDENT_NUMBER_ALREADY_EXISTS` 继续表示学号冲突；这些业务字段并非 Student 实体命名。历史迁移 `V2__add_student_number.sql` 保持名称和内容不变，避免破坏已有 Flyway 迁移记录。内部表 readers 和借阅外键 reader_id 保持不变，不需要新增数据库迁移。

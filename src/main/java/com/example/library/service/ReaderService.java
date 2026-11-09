@@ -3,18 +3,23 @@ package com.example.library.service;
 import com.example.library.repository.LibraryRepository;
 import com.example.library.exception.BusinessException;
 import org.springframework.stereotype.Service;
+import com.example.library.model.Reader;
+import com.example.library.dto.ResponseMapper;
 import java.util.UUID;
-import static com.example.library.model.Models.*;
+import static com.example.library.dto.Models.*;
 
-/** 学生录入与演示身份解析。 */
+/** 读者录入与演示身份解析。 */
 @Service
-public class StudentService {
+public class ReaderService {
     private final LibraryRepository repo;
     private final WriteTransactionExecutor transactions;
-    public StudentService(LibraryRepository repo, WriteTransactionExecutor transactions) {
+    public ReaderService(LibraryRepository repo, WriteTransactionExecutor transactions) {
         this.repo=repo; this.transactions=transactions;
     }
-    public Student createStudent(CreateStudentRequest request) { return transactions.execute(() -> repo.createStudent(request)); }
+    public ReaderResponse createReader(CreateReaderRequest request) { return transactions.execute(() -> {
+        var reader=Reader.create(request.name(),request.studentNumber(),repo.now());
+        return ResponseMapper.reader(repo.createReader(reader));
+    }); }
     public UUID authenticate(String value) {
         UUID id;
         try { id=UUID.fromString(value==null?"":value); }

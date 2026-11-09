@@ -11,7 +11,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import static com.example.library.model.Models.*;
+import static com.example.library.dto.Models.*;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
