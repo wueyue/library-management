@@ -692,7 +692,7 @@ curl -X POST http://localhost:8080/api/v1/loans/<loan_id>/return \
 
 ## 独立领域模型与持久化映射
 
-`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的不可变 Java class，使用私有字段、构造方法和 getter，与 API DTO 分离。API 请求响应仍使用 `dto/Models.java` 中的类型；响应分别为 BookResponse、ReaderResponse、LoanResponse。`dto/ResponseMapper.java` 负责领域对象到响应的显式转换。
+`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的不可变 Java class，使用私有字段、校验构造方法和 Lombok @Getter 生成的访问器，与 API DTO 分离。API 请求响应仍使用 `dto/Models.java` 中的类型；响应分别为 BookResponse、ReaderResponse、LoanResponse。`dto/ResponseMapper.java` 负责领域对象到响应的显式转换。
 
 ```mermaid
 flowchart LR
@@ -713,3 +713,7 @@ flowchart LR
 - 时间由 Service 在事务中从数据库获取，再传入领域工厂或状态方法；借还操作在拿到图书锁后取时间。模型实例创建、状态变更和持久化仍由原有事务整体保护。
 
 读者录入路径统一为 `POST /api/v1/readers/insert`，请求示例：`{"name":"张三","student_number":"00123"}`。`student_number` 继续表示学号，`STUDENT_NUMBER_ALREADY_EXISTS` 继续表示学号冲突；这些业务字段并非 Student 实体命名。历史迁移 `V2__add_student_number.sql` 保持名称和内容不变，避免破坏已有 Flyway 迁移记录。内部表 readers 和借阅外键 reader_id 保持不变，不需要新增数据库迁移。
+
+## Lombok
+
+Book、Reader、Loan 使用 `@Getter` 自动生成字段访问器，保留 final 字段、包含业务校验的显式构造方法，以及领域工厂和状态变更方法。Loan.getStatus() 继续根据 returnTime 计算。Maven 配置 Lombok 注解处理器，版本由 Spring Boot 父 POM 管理；Lombok 只在编译期使用，不打入可执行 JAR。命令行 Maven 编译无需 IDE 插件；IDE 中需开启注解处理。

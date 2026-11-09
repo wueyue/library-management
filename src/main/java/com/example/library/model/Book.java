@@ -1,10 +1,12 @@
 package com.example.library.model;
 
+import lombok.Getter;
 import java.util.UUID;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 
 /** 图书领域模型，维护库存范围与借还状态变化。 */
+@Getter
 public final class Book {
     private final UUID id;
     private final String title;
@@ -30,14 +32,6 @@ public final class Book {
         this.createTime=createTime;
         this.updateTime=updateTime;
     }
-    public UUID getId() { return id; }
-    public String getTitle() { return title; }
-    public String getAuthor() { return author; }
-    public String getDescription() { return description; }
-    public int getTotalCopies() { return totalCopies; }
-    public int getAvailableCopies() { return availableCopies; }
-    public OffsetDateTime getCreateTime() { return createTime; }
-    public OffsetDateTime getUpdateTime() { return updateTime; }
     /** 创建图书时由领域对象初始化 ID、库存与时间。 */
     public static Book create(String title, String author, String description, int totalCopies, OffsetDateTime now) {
         if (totalCopies < 0) throw new IllegalArgumentException("totalCopies must be nonnegative");

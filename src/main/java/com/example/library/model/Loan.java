@@ -1,10 +1,12 @@
 package com.example.library.model;
 
+import lombok.Getter;
 import java.util.UUID;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 
 /** 借阅领域模型，归还后保留原始借阅记录。 */
+@Getter
 public final class Loan {
     private final UUID id;
     private final UUID bookId;
@@ -26,12 +28,6 @@ public final class Loan {
         this.returnTime=returnTime;
         this.updateTime=updateTime;
     }
-    public UUID getId() { return id; }
-    public UUID getBookId() { return bookId; }
-    public UUID getReaderId() { return readerId; }
-    public OffsetDateTime getBorrowTime() { return borrowTime; }
-    public OffsetDateTime getReturnTime() { return returnTime; }
-    public OffsetDateTime getUpdateTime() { return updateTime; }
     public static Loan borrow(UUID readerId, UUID bookId, OffsetDateTime now) {
         return new Loan(UUID.randomUUID(),bookId,readerId,now,null,now);
     }
