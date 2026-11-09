@@ -59,13 +59,27 @@ Java 21 下编译、JAR 打包成功，13 项单元及 HTTP 接口测试通过�
 
 ## 代码结构与实现说明
 
-- `LibraryController`：七个 REST API，附中文接口注释。
-- `Models`：请求、响应及分页 DTO，Bean Validation 验证请求。
-- `LibraryService`：业务规则、事务边界、明确回滚后的有限重试。
-- `LibraryRepository`：参数化 SQL、行锁及条件库存更新。
-- `ApiExceptionHandler`、`RequestIdFilter`：统一错误与请求追踪。
+```text
+src/main/java/com/example/library/
+├── LibraryApplication.java
+├── controller/LibraryController.java
+├── model/Models.java
+├── service/LibraryService.java
+├── repository/LibraryRepository.java
+├── exception/
+│   ├── BusinessException.java
+│   └── ApiExceptionHandler.java
+└── filter/RequestIdFilter.java
+```
+
+- `controller`：HTTP 接口、入参校验与接口注释。
+- `model`：请求、响应及分页数据定义。
+- `service`：业务规则、事务与重试。
+- `repository`：参数化 SQL 与数据库访问。
+- `exception`：业务异常与统一异常响应。
+- `filter`：请求 ID 生成与追踪。
 - `src/main/resources/db/migration/`：Flyway 数据库迁移。
-- `src/test/java/`：单元、HTTP 接口与真实数据库并发测试。
+- `src/test/java/com/example/library/`：分别在 controller、service、integration 包中组织接口、业务及数据库测试。
 
 事务通过 TransactionTemplate 显式执行，避免同类调用导致声明式事务失效。隔离级别 READ COMMITTED，统一先锁图书再锁借阅。数据库时钟生成借还时间，确保 Loan 的 borrow_time / return_time 与对应 update_time 完全一致。未实现图书/读者修改接口，未来新增信息更新时必须同步设置 update_time。
 

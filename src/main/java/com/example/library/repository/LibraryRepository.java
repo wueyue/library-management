@@ -1,5 +1,6 @@
-package com.example.library;
+package com.example.library.repository;
 
+import com.example.library.exception.BusinessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -8,7 +9,7 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-import static com.example.library.Models.*;
+import static com.example.library.model.Models.*;
 
 @Repository
 public class LibraryRepository {

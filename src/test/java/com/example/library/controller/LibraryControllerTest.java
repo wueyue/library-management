@@ -1,5 +1,7 @@
-package com.example.library;
+package com.example.library.controller;
 
+import com.example.library.service.LibraryService;
+import com.example.library.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -10,7 +12,7 @@ import java.util.UUID;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static com.example.library.Models.*;
+import static com.example.library.model.Models.*;
 
 @WebMvcTest(LibraryController.class)
 class LibraryControllerTest {

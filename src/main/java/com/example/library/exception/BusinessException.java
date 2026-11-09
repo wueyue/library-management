@@ -1,9 +1,11 @@
-package com.example.library;
+package com.example.library.exception;
 
 public class BusinessException extends RuntimeException {
-    final int status;
-    final String code;
+    private final int status;
+    private final String code;
     public BusinessException(int status, String code, String message) {
         super(message); this.status = status; this.code = code;
     }
+    public int getStatus() { return status; }
+    public String getCode() { return code; }
 }

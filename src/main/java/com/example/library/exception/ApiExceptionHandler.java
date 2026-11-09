@@ -1,4 +1,4 @@
-package com.example.library;
+package com.example.library.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -11,7 +11,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import static com.example.library.Models.*;
+import static com.example.library.model.Models.*;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -20,7 +20,7 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(status).body(new ErrorResponse(new ErrorDetail(code,message,(String)r.getAttribute("requestId"))));
     }
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ErrorResponse> business(BusinessException e,HttpServletRequest r) { return response(e.status,e.code,e.getMessage(),r); }
+    public ResponseEntity<ErrorResponse> business(BusinessException e,HttpServletRequest r) { return response(e.getStatus(),e.getCode(),e.getMessage(),r); }
     @ExceptionHandler({ConstraintViolationException.class, MethodArgumentNotValidException.class,
         MethodArgumentTypeMismatchException.class,HttpMessageNotReadableException.class,HandlerMethodValidationException.class})
     public ResponseEntity<ErrorResponse> invalid(Exception e,HttpServletRequest r) { return response(400,"INVALID_ARGUMENT","请求参数不合法",r); }

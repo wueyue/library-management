@@ -1,5 +1,6 @@
-package com.example.library;
+package com.example.library.controller;
 
+import com.example.library.service.LibraryService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -7,7 +8,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
 import java.util.UUID;
-import static com.example.library.Models.*;
+import static com.example.library.model.Models.*;
 
 /** 对外 REST API。字段说明、示例、时序图和错误码见 README。 */
 @RestController

@@ -1,5 +1,7 @@
-package com.example.library;
+package com.example.library.service;
 
+import com.example.library.repository.LibraryRepository;
+import com.example.library.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -9,7 +11,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static com.example.library.Models.*;
+import static com.example.library.model.Models.*;
 
 class LibraryServiceTest {
     LibraryRepository repo;
@@ -37,12 +39,12 @@ class LibraryServiceTest {
     @Test void duplicateHasPriorityAndRollsBack() {
         when(repo.activeLoan(reader,book)).thenReturn(true);
         var error=assertThrows(BusinessException.class,()->service.borrow(reader,book));
-        assertEquals("BOOK_ALREADY_BORROWED",error.code);
+        assertEquals("BOOK_ALREADY_BORROWED",error.getCode());
         verify(repo,never()).decrement(any()); verify(manager).rollback(any());
     }
     @Test void noStockDoesNotCreateLoan() {
         var error=assertThrows(BusinessException.class,()->service.borrow(reader,book));
-        assertEquals("BOOK_OUT_OF_STOCK",error.code);
+        assertEquals("BOOK_OUT_OF_STOCK",error.getCode());
         verify(repo,never()).createLoan(any(),any()); verify(manager).rollback(any());
     }
     @Test void insertFailureRollsBackTransaction() {
@@ -75,8 +77,8 @@ class LibraryServiceTest {
         verify(manager).rollback(any());
     }
     @Test void invalidIdentityRejectedBeforeDatabaseAccess() {
-        assertEquals(401,assertThrows(BusinessException.class,()->service.authenticate(null)).status);
-        assertEquals(401,assertThrows(BusinessException.class,()->service.authenticate("invalid")).status);
+        assertEquals(401,assertThrows(BusinessException.class,()->service.authenticate(null)).getStatus());
+        assertEquals(401,assertThrows(BusinessException.class,()->service.authenticate("invalid")).getStatus());
         verifyNoInteractions(repo);
     }
 }

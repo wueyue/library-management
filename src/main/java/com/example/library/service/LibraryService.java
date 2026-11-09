@@ -1,5 +1,7 @@
-package com.example.library;
+package com.example.library.service;
 
+import com.example.library.repository.LibraryRepository;
+import com.example.library.exception.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -9,7 +11,7 @@ import java.sql.SQLException;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
-import static com.example.library.Models.*;
+import static com.example.library.model.Models.*;
 
 @Service
 public class LibraryService {

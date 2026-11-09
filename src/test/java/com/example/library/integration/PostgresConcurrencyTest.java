@@ -1,5 +1,7 @@
-package com.example.library;
+package com.example.library.integration;
 
+import com.example.library.service.LibraryService;
+import com.example.library.exception.BusinessException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +13,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.IntFunction;
 import static org.junit.jupiter.api.Assertions.*;
-import static com.example.library.Models.*;
+import static com.example.library.model.Models.*;
 
 /** 使用专用 PostgreSQL 测试库和独立事务；无数据库时明确跳过，不用 H2 模拟行锁。 */
 @SpringBootTest
@@ -41,7 +43,7 @@ class PostgresConcurrencyTest {
             var futures=new ArrayList<Future<Object>>();
             for(int i=0;i<20;i++) { final int index=i;futures.add(pool.submit(()->{
                 gate.await(10,TimeUnit.SECONDS);
-                try { return action.apply(index); } catch(BusinessException e) { return e.code; }
+                try { return action.apply(index); } catch(BusinessException e) { return e.getCode(); }
             })); }
             var results=new ArrayList<Object>();
             for(var f:futures) results.add(f.get(20,TimeUnit.SECONDS));
@@ -87,7 +89,7 @@ class PostgresConcurrencyTest {
     @Test void otherReaderCannotReturnLoan() {
         var loan=service.borrow(readers.getFirst(),book);
         var e=assertThrows(BusinessException.class,()->service.returnBook(readers.get(1),loan.id()));
-        assertEquals("LOAN_NOT_FOUND",e.code);stock(0);
+        assertEquals("LOAN_NOT_FOUND",e.getCode());stock(0);
     }
     @Test void enteredStudentAndBookCanBorrowAndReturn() {
         var student=service.createStudent(new CreateStudentRequest("  新学生  "));
