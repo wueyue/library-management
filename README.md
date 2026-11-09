@@ -55,7 +55,8 @@ mvn test
 
 ## 本次验证结果
 
-Java 21 下编译、JAR 打包成功，31 项 Command、领域、DAO 校验、业务转换及 HTTP 接口测试通过。8 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL 受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
+Java 21 下编译、JAR 打包成功，31 项 Command、领域、DAO 校验、业务转换及 HTTP 接口测试通过。8 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL
+受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
 
 ## 代码结构与实现说明
 
@@ -113,9 +114,11 @@ src/main/java/com/example/library/
 
 三个 Controller 分别仅处理图书、读者和借阅接口；LoanController 额外调用 ReaderService 解析演示身份。各 ServiceImpl 调用对应 DAO，借阅与库存修改仍在同一事务内。
 
-事务通过共享 WriteTransactionExecutor 中的 TransactionTemplate 显式执行，避免同类调用导致声明式事务失效。隔离级别 READ COMMITTED，统一先锁图书再锁借阅。数据库时钟生成借还时间，确保 Loan 的 borrow_time / return_time 与对应 update_time 完全一致。未实现图书/读者修改接口，未来新增信息更新时必须同步设置 update_time。
+事务通过共享 WriteTransactionExecutor 中的 TransactionTemplate 显式执行，避免同类调用导致声明式事务失效。隔离级别 READ COMMITTED，统一先锁图书再锁借阅。数据库时钟生成借还时间，确保 Loan 的 borrow_time /
+return_time 与对应 update_time 完全一致。未实现图书/读者修改接口，未来新增信息更新时必须同步设置 update_time。
 
-图书列表直接复用 Book DTO，因此比下方最小 API 示例多返回 description 和 create_time。当前版本以 Controller 的 JavaDoc、Models 及本 README 提供接口定义，没有启用 Swagger 页面。身份头只模拟身份，不代表生产认证。数据库连接不可用返回 503，提交结果未知时不自动重试。
+图书列表直接复用 Book DTO，因此比下方最小 API 示例多返回 description 和 create_time。当前版本以 Controller 的 JavaDoc、Models 及本 README 提供接口定义，没有启用 Swagger
+页面。身份头只模拟身份，不代表生产认证。数据库连接不可用返回 503，提交结果未知时不自动重试。
 
 ---
 
@@ -285,7 +288,8 @@ CREATE INDEX idx_books_listing ON books (create_time DESC, id DESC);
 
 ### 4.5 更新时间规则
 
-Book、Reader、Loan 均包含 update_time。创建时设置为创建时刻；持久化信息实际发生修改时更新为当前 UTC 时间。Book 的元数据修改、借阅扣减库存及归还增加库存均更新 update_time；Reader 信息修改时更新 update_time；Loan 创建时 update_time 等于 borrow_time，首次归还时 update_time 等于 return_time。重复归还及没有实际变化的请求不刷新 update_time。
+Book、Reader、Loan 均包含 update_time。创建时设置为创建时刻；持久化信息实际发生修改时更新为当前 UTC 时间。Book 的元数据修改、借阅扣减库存及归还增加库存均更新 update_time；Reader 信息修改时更新 update_time；Loan 创建时
+update_time 等于 borrow_time，首次归还时 update_time 等于 return_time。重复归还及没有实际变化的请求不刷新 update_time。
 
 更新时间由服务端在写入语句中设置，并与业务更新在同一事务内提交，不能接受客户端传入。DEFAULT 仅负责插入默认值，不会自动处理 UPDATE。
 
@@ -658,7 +662,8 @@ sequenceDiagram
 
 ### POST /api/v1/readers/insert
 
-录入读者，name 为必填非空白字符串，最多 100 字；student_number 为必填非空白字符串，最多 64 字。两者保存时去除首尾空白；学号大小写敏感，以字符串保存并保留前导零。数据库唯一约束防止重复学号，重复时返回 409 STUDENT_NUMBER_ALREADY_EXISTS。成功返回 201：
+录入读者，name 为必填非空白字符串，最多 100 字；student_number 为必填非空白字符串，最多 64 字。两者保存时去除首尾空白；学号大小写敏感，以字符串保存并保留前导零。数据库唯一约束防止重复学号，重复时返回 409
+STUDENT_NUMBER_ALREADY_EXISTS。成功返回 201：
 
 ```json
 {
@@ -700,7 +705,8 @@ curl -X POST http://localhost:8080/api/v1/loans/<loan_id>/return \
 
 新增 student_number：姓名可以重复，学号必须唯一。录入接口的 student_number 为必填字段，返回对象同样包含该字段。现有 X-Reader-Id 继续使用读者内部 UUID；学号用于业务识别和录入去重，不作为认证凭证。借阅记录的 reader_id 外键保持有效。
 
-迁移采用 `V2__add_student_number.sql`，不修改已执行的 V1 校验和。新库依次执行 V1、V2；旧库先添加字段，再给旧读者分配 `LEGACY-<原 UUID>` 唯一临时编号，更新 update_time，最后施加非空和唯一约束。临时编号不是真实学号，上线前应按实际读者名册核对并补录；修改学号时须同时更新 update_time。本文建表 SQL 展示最终结构，实际升级以 Flyway 迁移为准。
+迁移采用 `V2__add_student_number.sql`，不修改已执行的 V1 校验和。新库依次执行 V1、V2；旧库先添加字段，再给旧读者分配 `LEGACY-<原 UUID>` 唯一临时编号，更新
+update_time，最后施加非空和唯一约束。临时编号不是真实学号，上线前应按实际读者名册核对并补录；修改学号时须同时更新 update_time。本文建表 SQL 展示最终结构，实际升级以 Flyway 迁移为准。
 
 录入相同学号的并发请求由唯一约束保证最多一条成功；冲突请求回滚并返回 409。学号去除首尾空白后比较，大小写敏感，前导零保留。例如 `00123` 和 `123` 是不同学号。同名且不同学号可分别创建读者。
 
@@ -708,7 +714,8 @@ curl -X POST http://localhost:8080/api/v1/loans/<loan_id>/return \
 
 ## 独立领域模型与持久化映射
 
-`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的Java class，使用私有字段、校验构造方法和 Lombok @Getter / @Setter 生成的访问器，与 API DTO 分离。API 请求响应使用 `dto/Models.java` 中的类型，写操作的应用层入参使用 `command` 包中的类型；响应分别为 BookResponse、ReaderResponse、LoanResponse。`dto/ResponseMapper.java` 负责领域对象到响应的显式转换。
+`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的Java class，使用私有字段、校验构造方法和 Lombok @Getter / @Setter 生成的访问器，与 API DTO 分离。API 请求响应使用
+`dto/Models.java` 中的类型，写操作的应用层入参使用 `command` 包中的类型；响应分别为 BookResponse、ReaderResponse、LoanResponse。`dto/ResponseMapper.java` 负责领域对象到响应的显式转换。
 
 ```mermaid
 flowchart LR
@@ -728,23 +735,30 @@ flowchart LR
 - DAO 的 createBook、createReader、createLoan、markReturned、decrement、increment 只接受领域对象，不接受请求 DTO。查询也先映射为领域对象，再转换响应；当前借阅使用一次关联查询，避免逐条查询图书。
 - 时间由 Service 在事务中从数据库获取，再传入领域工厂或状态方法；借还操作在拿到图书锁后取时间。模型实例创建、状态变更和持久化仍由原有事务整体保护。
 
-读者录入路径统一为 `POST /api/v1/readers/insert`，请求示例：`{"name":"张三","student_number":"00123"}`。`student_number` 继续表示学号，`STUDENT_NUMBER_ALREADY_EXISTS` 继续表示学号冲突；这些业务字段并非 Student 实体命名。历史迁移 `V2__add_student_number.sql` 保持名称和内容不变，避免破坏已有 Flyway 迁移记录。内部表 readers 和借阅外键 reader_id 保持不变，不需要新增数据库迁移。
+读者录入路径统一为 `POST /api/v1/readers/insert`，请求示例：`{"name":"张三","student_number":"00123"}`。`student_number` 继续表示学号，`STUDENT_NUMBER_ALREADY_EXISTS`
+继续表示学号冲突；这些业务字段并非 Student 实体命名。历史迁移 `V2__add_student_number.sql` 保持名称和内容不变，避免破坏已有 Flyway 迁移记录。内部表 readers 和借阅外键 reader_id 保持不变，不需要新增数据库迁移。
 
 ## Lombok
 
-Book、Reader、Loan 使用 `@Getter`、`@Setter` 自动生成字段访问器，通过 @Setter 提供字段设置方法，保留包含业务校验的显式构造方法，以及领域工厂和状态变更方法。Loan.getStatus() 继续根据 returnTime 计算。Maven 配置 Lombok 注解处理器，版本由 Spring Boot 父 POM 管理；Lombok 只在编译期使用，不打入可执行 JAR。命令行 Maven 编译无需 IDE 插件；IDE 中需开启注解处理。
+Book、Reader、Loan 使用 `@Getter`、`@Setter` 自动生成字段访问器，通过 @Setter 提供字段设置方法，保留包含业务校验的显式构造方法，以及领域工厂和状态变更方法。Loan.getStatus() 继续根据 returnTime 计算。Maven 配置
+Lombok 注解处理器，版本由 Spring Boot 父 POM 管理；Lombok 只在编译期使用，不打入可执行 JAR。命令行 Maven 编译无需 IDE 插件；IDE 中需开启注解处理。
 
 ## Service 接口与独立 DAO
 
-Controller 依赖 BookService、ReaderService、LoanService 接口，由 Spring 注入 service.impl 中的对应实现。实现类编排业务和事务，通过 dto.persistence 下的 BookDao、ReaderDao、LoanDao 访问数据库；领域类只包含数据和领域规则，不包含 SQL 或 JDBC 依赖。按本项目的目录约定，DAO 位于 dto.persistence，纯 API DTO 仍位于 dto.Models，两者职责分开。
+Controller 依赖 BookService、ReaderService、LoanService 接口，由 Spring 注入 service.impl 中的对应实现。实现类编排业务和事务，通过 dto.persistence 下的 BookDao、ReaderDao、LoanDao
+访问数据库；领域类只包含数据和领域规则，不包含 SQL 或 JDBC 依赖。按本项目的目录约定，DAO 位于 dto.persistence，纯 API DTO 仍位于 dto.Models，两者职责分开。
 
-三个领域类使用 @Getter、@Setter，字段不再为 final。setter 只修改对象，不执行数据库操作；每个 DAO 写入前调用领域对象 validate()，拒绝空必填字段、非法库存及早于借阅时间的归还时间。Controller 将请求 DTO 转换为 Command，BookServiceImpl、ReaderServiceImpl 再将 Command 转换为领域对象；LoanServiceImpl 在同一个事务中锁定图书，再更新借阅和库存。模型对象仅在单次业务操作内使用。
+三个领域类使用 @Getter、@Setter，字段不再为 final。setter 只修改对象，不执行数据库操作；每个 DAO 写入前调用领域对象 validate()，拒绝空必填字段、非法库存及早于借阅时间的归还时间。Controller 将请求 DTO 转换为
+Command，BookServiceImpl、ReaderServiceImpl 再将 Command 转换为领域对象；LoanServiceImpl 在同一个事务中锁定图书，再更新借阅和库存。模型对象仅在单次业务操作内使用。
 
-DatabaseAccess 统一提供数据库时钟与锁等待设置，WriteTransactionExecutor 保留 READ COMMITTED、事务回滚和有限重试规则。DAO 不自行提交事务，三个 DAO 使用相同数据源，受同一个 Spring 事务管理器管理。API 路径、JSON 格式、数据库迁移及唯一约束保持不变。
+DatabaseAccess 统一提供数据库时钟与锁等待设置，WriteTransactionExecutor 保留 READ COMMITTED、事务回滚和有限重试规则。DAO 不自行提交事务，三个 DAO 使用相同数据源，受同一个 Spring 事务管理器管理。API 路径、JSON
+格式、数据库迁移及唯一约束保持不变。
 
 ## Request → Command → 领域对象 → DAO
 
-Controller 接收并验证 HTTP Request，将有效入参构造为应用层 Command。BookService、ReaderService、LoanService 接口和实现不再依赖 API 请求/响应 DTO；写操作分别接收 CreateBookCommand、CreateReaderCommand、BorrowLoanCommand、ReturnLoanCommand。读操作保持 UUID、分页参数，返回领域对象或 PageResult，而非 API Page。当前借阅结果使用 CurrentBorrowing 查询模型。
+Controller 接收并验证 HTTP Request，将有效入参构造为应用层 Command。BookService、ReaderService、LoanService 接口和实现不再依赖 API 请求/响应 DTO；写操作分别接收
+CreateBookCommand、CreateReaderCommand、BorrowLoanCommand、ReturnLoanCommand。读操作保持 UUID、分页参数，返回领域对象或 PageResult，而非 API Page。当前借阅结果使用 CurrentBorrowing
+查询模型。
 
 ```mermaid
 flowchart TD
@@ -759,6 +773,17 @@ flowchart TD
     I --> J[响应 DTO / JSON]
 ```
 
-Command 为不可变 record，自身检查必填、长度、库存非负及操作标识，且不包含 Jackson、HTTP 或 Jakarta Validation 注解。这样非 HTTP 调用方也不能绕过基础校验。领域工厂和 DAO 仍分别负责领域规则与写入前校验。Controller 负责把 Service 返回的 Book、Reader、Loan、PageResult 映射到原 API 响应，JSON 格式和接口路径保持不变。
+Command 为不可变 record，自身检查必填、长度、库存非负及操作标识，且不包含 Jackson、HTTP 或 Jakarta Validation 注解。这样非 HTTP 调用方也不能绕过基础校验。领域工厂和 DAO 仍分别负责领域规则与写入前校验。Controller 负责把
+Service 返回的 Book、Reader、Loan、PageResult 映射到原 API 响应，JSON 格式和接口路径保持不变。
 
 测试新增 Command 非 HTTP 输入校验、Controller 请求到 Command 的字段转换，以及领域查询结果到 API 响应的映射验证。数据库锁顺序、事务边界、重试规则和 Flyway 迁移保持不变。
+
+## 代码格式
+
+项目源文件每行不超过 150 个字符，Java 使用 4 空格缩进，代码块左右花括号分行显示，空方法与 record 也展开。
+字符串和注释中的花括号不作为代码块处理。空 repository 目录已移除，数据库访问仍在 dto.persistence 下。
+编辑器配置见 .editorconfig。可执行以下格式检查，验证 Java、SQL、配置和 README 的行长，以及 Java 代码花括号：
+
+```bash
+python3 tools/check_format.py
+```
