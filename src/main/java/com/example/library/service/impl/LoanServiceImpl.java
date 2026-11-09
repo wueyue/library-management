@@ -4,6 +4,7 @@ import com.example.library.command.*;
 import com.example.library.dto.persistence.BookDao;
 import com.example.library.dto.persistence.LoanDao;
 import com.example.library.exception.BusinessException;
+import com.example.library.exception.ErrorCode;
 import com.example.library.model.CurrentBorrowing;
 import com.example.library.model.Loan;
 import com.example.library.model.PageResult;
@@ -44,14 +45,15 @@ public class LoanServiceImpl implements LoanService {
         UUID reader = command.readerId(), book = command.bookId();
         return transactions.execute(
                 () -> {
-                    var lockedBook = bookDao.book(book, true);
+                    var lockedBook = bookDao.findByIdForUpdate(book);
                     if (loanDao.activeLoan(reader, book))
-                        throw new BusinessException(409, "BOOK_ALREADY_BORROWED", "你已借阅这本书，请先归还");
+                        throw new BusinessException(
+                                ErrorCode.BOOK_ALREADY_BORROWED, "你已借阅这本书，请先归还");
                     if (lockedBook.getAvailableCopies() <= 0)
-                        throw new BusinessException(409, "BOOK_OUT_OF_STOCK", "图书库存不足");
+                        throw new BusinessException(ErrorCode.BOOK_OUT_OF_STOCK, "图书库存不足");
                     var now = transactions.now();
                     if (bookDao.decrement(lockedBook.borrowCopy(now)) != 1)
-                        throw new BusinessException(409, "BOOK_OUT_OF_STOCK", "图书库存不足");
+                        throw new BusinessException(ErrorCode.BOOK_OUT_OF_STOCK, "图书库存不足");
                     var loan = Loan.borrow(reader, book, now);
                     return loanDao.createLoan(loan);
                 });
@@ -63,9 +65,9 @@ public class LoanServiceImpl implements LoanService {
         UUID reader = command.readerId(), loanId = command.loanId();
         return transactions.execute(
                 () -> {
-                    var ref = loanDao.ownedLoan(loanId, reader, false);
-                    var lockedBook = bookDao.book(ref.getBookId(), true);
-                    var loan = loanDao.ownedLoan(loanId, reader, true);
+                    var ref = loanDao.findOwnedById(loanId, reader);
+                    var lockedBook = bookDao.findByIdForUpdate(ref.getBookId());
+                    var loan = loanDao.findOwnedByIdForUpdate(loanId, reader);
                     if (loan.getReturnTime() != null) return loan;
                     var now = transactions.now();
                     var result = loanDao.markReturned(loan.returnBook(now));

@@ -1,6 +1,7 @@
 package com.example.library.dto.persistence;
 
 import com.example.library.exception.BusinessException;
+import com.example.library.exception.ErrorCode;
 import com.example.library.model.Loan;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -49,7 +50,7 @@ public class LoanDao {
         return Boolean.TRUE.equals(
                 jdbc.queryForObject(
                         "SELECT EXISTS(SELECT 1 FROM loans WHERE reader_id=? AND book_id=? AND"
-                            + " return_time IS NULL)",
+                                + " return_time IS NULL)",
                         Boolean.class,
                         reader,
                         book));
@@ -59,7 +60,7 @@ public class LoanDao {
         loan.validate();
         return jdbc.queryForObject(
                 "INSERT INTO loans(id,reader_id,book_id,borrow_time,return_time,update_time)"
-                    + " VALUES(?,?,?,?,?,?) RETURNING *",
+                        + " VALUES(?,?,?,?,?,?) RETURNING *",
                 LOAN,
                 loan.getId(),
                 loan.getReaderId(),
@@ -69,7 +70,15 @@ public class LoanDao {
                 loan.getUpdateTime());
     }
 
-    public Loan ownedLoan(UUID id, UUID reader, boolean lock) {
+    public Loan findOwnedById(UUID id, UUID reader) {
+        return findOwned(id, reader, false);
+    }
+
+    public Loan findOwnedByIdForUpdate(UUID id, UUID reader) {
+        return findOwned(id, reader, true);
+    }
+
+    private Loan findOwned(UUID id, UUID reader, boolean lock) {
         return jdbc
                 .query(
                         "SELECT * FROM loans WHERE id=? AND reader_id=?"
@@ -79,14 +88,14 @@ public class LoanDao {
                         reader)
                 .stream()
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(404, "LOAN_NOT_FOUND", "借阅不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LOAN_NOT_FOUND, "借阅不存在"));
     }
 
     public Loan markReturned(Loan loan) {
         loan.validate();
         return jdbc.queryForObject(
                 "UPDATE loans SET return_time=?,update_time=? WHERE id=? AND return_time IS NULL"
-                    + " RETURNING *",
+                        + " RETURNING *",
                 LOAN,
                 loan.getReturnTime(),
                 loan.getUpdateTime(),

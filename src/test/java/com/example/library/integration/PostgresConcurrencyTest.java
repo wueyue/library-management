@@ -49,7 +49,7 @@ class PostgresConcurrencyTest {
         readers = new ArrayList<>();
         jdbc.update(
                 "INSERT INTO books(id,title,author,total_copies,available_copies)"
-                    + " VALUES(?,'test','author',1,1)",
+                        + " VALUES(?,'test','author',1,1)",
                 book);
         for (int i = 0; i < 20; i++) {
             var id = UUID.randomUUID();
@@ -108,7 +108,7 @@ class PostgresConcurrencyTest {
                 0,
                 jdbc.queryForObject(
                         "SELECT count(*) FROM (SELECT reader_id FROM loans WHERE book_id=? AND"
-                            + " return_time IS NULL GROUP BY reader_id HAVING count(*)>1) t",
+                                + " return_time IS NULL GROUP BY reader_id HAVING count(*)>1) t",
                         Integer.class,
                         book));
     }
@@ -222,7 +222,7 @@ class PostgresConcurrencyTest {
         readers.add(first.getId());
         assertEquals(number, first.getStudentNumber());
         assertThrows(
-                org.springframework.dao.DuplicateKeyException.class,
+                BusinessException.class,
                 () ->
                         readerService.createReader(
                                 new CreateReaderCommand("另一学生", "  " + number + "  ")));
@@ -231,5 +231,43 @@ class PostgresConcurrencyTest {
                         new CreateReaderCommand("同名学生", UUID.randomUUID().toString()));
         readers.add(second.getId());
         assertNotEquals(first.getId(), second.getId());
+    }
+
+    @Test
+    void concurrentReaderNumberHasOneWinner() throws Exception {
+        String number = UUID.randomUUID().toString();
+        var results =
+                parallel(i -> readerService.createReader(new CreateReaderCommand("同名读者", number)));
+        results.stream()
+                .filter(Reader.class::isInstance)
+                .map(Reader.class::cast)
+                .forEach(r -> readers.add(r.getId()));
+        assertEquals(1, results.stream().filter(Reader.class::isInstance).count());
+        assertEquals(19, results.stream().filter("STUDENT_NUMBER_ALREADY_EXISTS"::equals).count());
+    }
+
+    @Test
+    void lockTimeoutRollsBackBorrow() throws Exception {
+        try (var connection =
+                java.util.Objects.requireNonNull(jdbc.getDataSource()).getConnection()) {
+            connection.setAutoCommit(false);
+            try (var statement =
+                    connection.prepareStatement("SELECT id FROM books WHERE id=? FOR UPDATE")) {
+                statement.setObject(1, book);
+                try (var result = statement.executeQuery()) {
+                    assertTrue(result.next());
+                }
+                var error =
+                        assertThrows(
+                                BusinessException.class,
+                                () ->
+                                        loans.borrow(
+                                                new BorrowLoanCommand(readers.getFirst(), book)));
+                assertEquals("SERVICE_BUSY", error.getCode());
+            } finally {
+                connection.rollback();
+            }
+        }
+        stock(1);
     }
 }

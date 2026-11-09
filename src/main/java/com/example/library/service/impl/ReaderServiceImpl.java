@@ -3,6 +3,7 @@ package com.example.library.service.impl;
 import com.example.library.command.*;
 import com.example.library.dto.persistence.ReaderDao;
 import com.example.library.exception.BusinessException;
+import com.example.library.exception.ErrorCode;
 import com.example.library.model.Reader;
 import com.example.library.service.ReaderService;
 import com.example.library.service.WriteTransactionExecutor;
@@ -39,10 +40,10 @@ public class ReaderServiceImpl implements ReaderService {
         try {
             id = UUID.fromString(value == null ? "" : value);
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(401, "UNAUTHENTICATED", "读者身份无效");
+            throw new BusinessException(ErrorCode.UNAUTHENTICATED, "读者身份无效");
         }
         if (!readerDao.readerExists(id))
-            throw new BusinessException(401, "UNAUTHENTICATED", "读者身份无效");
+            throw new BusinessException(ErrorCode.UNAUTHENTICATED, "读者身份无效");
         return id;
     }
 }

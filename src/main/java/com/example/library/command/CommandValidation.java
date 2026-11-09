@@ -1,6 +1,7 @@
 package com.example.library.command;
 
 import com.example.library.exception.BusinessException;
+import com.example.library.exception.ErrorCode;
 
 /** 保护非 HTTP 入口，避免业务操作只依赖 Controller 校验。 */
 final class CommandValidation {
@@ -16,6 +17,6 @@ final class CommandValidation {
     }
 
     static BusinessException invalid() {
-        return new BusinessException(400, "INVALID_ARGUMENT", "业务操作参数不合法");
+        return new BusinessException(ErrorCode.INVALID_ARGUMENT, "业务操作参数不合法");
     }
 }

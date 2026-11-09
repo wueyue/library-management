@@ -1,6 +1,5 @@
 package com.example.library.command;
 
-
 /** 应用层操作入参，不依赖 HTTP、JSON 或请求 DTO。 */
 public record CreateBookCommand(String title, String author, String description, int totalCopies) {
     public CreateBookCommand {

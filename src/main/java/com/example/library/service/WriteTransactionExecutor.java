@@ -2,6 +2,7 @@ package com.example.library.service;
 
 import com.example.library.dto.persistence.DatabaseAccess;
 import com.example.library.exception.BusinessException;
+import com.example.library.exception.ErrorCode;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
@@ -49,7 +50,9 @@ public class WriteTransactionExecutor {
                         throw busy();
                     }
                 } else if ("55P03".equals(state)) throw busy();
-                else throw e;
+                else
+                    throw com.example.library.dto.persistence.DatabaseExceptionTranslator.translate(
+                            e);
             }
         }
         throw busy();
@@ -62,6 +65,6 @@ public class WriteTransactionExecutor {
     }
 
     private static BusinessException busy() {
-        return new BusinessException(503, "SERVICE_BUSY", "服务繁忙，请稍后重试");
+        return new BusinessException(ErrorCode.SERVICE_BUSY, "服务繁忙，请稍后重试");
     }
 }

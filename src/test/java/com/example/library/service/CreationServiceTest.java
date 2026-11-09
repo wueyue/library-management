@@ -76,4 +76,22 @@ class CreationServiceTest {
         assertEquals(persisted.getId(), response.getId());
         assertEquals("00123", response.getStudentNumber());
     }
+
+    @Test
+    void uniqueNumberBecomesBusinessErrorForNonHttpCaller() {
+        var server =
+                new org.postgresql.util.ServerErrorMessage(
+                        "SERROR\0C23505\0Mduplicate\0nuq_reader_student_number\0");
+        when(readerDao.createReader(any(Reader.class)))
+                .thenThrow(
+                        new org.springframework.dao.DuplicateKeyException(
+                                "duplicate", new org.postgresql.util.PSQLException(server)));
+        var error =
+                assertThrows(
+                        com.example.library.exception.BusinessException.class,
+                        () ->
+                                new ReaderServiceImpl(readerDao, transactions)
+                                        .createReader(new CreateReaderCommand("张三", "00123")));
+        assertEquals("STUDENT_NUMBER_ALREADY_EXISTS", error.getCode());
+    }
 }

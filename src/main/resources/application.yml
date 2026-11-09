@@ -10,6 +10,7 @@ spring:
     property-naming-strategy: SNAKE_CASE
     deserialization:
       fail-on-unknown-properties: true
+      accept-float-as-int: false
 server:
   error:
     include-message: never

@@ -33,6 +33,7 @@ files = list((ROOT / "src").rglob("*.java"))
 files += list((ROOT / "src/main/resources").rglob("*.sql"))
 files += list((ROOT / "src/main/resources").rglob("*.yml"))
 files += list((ROOT / "tools").glob("*.py"))
+files += list((ROOT / ".github/workflows").glob("*.yml"))
 files += [ROOT / name for name in ["pom.xml", "seed.sql", "compose.yaml", "README.md", ".editorconfig"]]
 errors = [error for path in files for error in check(path)]
 if errors:

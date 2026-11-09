@@ -1,5 +1,6 @@
 package com.example.library.model;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,11 +12,22 @@ import java.util.UUID;
 @Getter
 @Setter
 public final class Loan {
+    @Setter(AccessLevel.NONE)
     private UUID id;
+
+    @Setter(AccessLevel.NONE)
     private UUID bookId;
+
+    @Setter(AccessLevel.NONE)
     private UUID readerId;
+
+    @Setter(AccessLevel.NONE)
     private OffsetDateTime borrowTime;
+
+    @Setter(AccessLevel.NONE)
     private OffsetDateTime returnTime;
+
+    @Setter(AccessLevel.NONE)
     private OffsetDateTime updateTime;
 
     public Loan(

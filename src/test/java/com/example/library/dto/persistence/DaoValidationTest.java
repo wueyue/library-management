@@ -19,10 +19,9 @@ class DaoValidationTest {
     private final OffsetDateTime now = OffsetDateTime.now();
 
     @Test
-    void invalidStockSetBySetterNeverReachesDatabase() {
+    void invalidTitleSetBySetterNeverReachesDatabase() {
         var book = Book.create("Java", "作者", null, 2, now);
-        book.setAvailableCopies(3);
-        assertEquals(3, book.getAvailableCopies());
+        book.setTitle(" ");
         assertThrows(IllegalArgumentException.class, () -> new BookDao(jdbc).createBook(book));
         verifyNoInteractions(jdbc);
     }
@@ -37,10 +36,15 @@ class DaoValidationTest {
     }
 
     @Test
-    void invalidReturnTimeSetBySetterNeverReachesDatabase() {
-        var loan = Loan.borrow(UUID.randomUUID(), UUID.randomUUID(), now);
-        loan.setReturnTime(now.minusHours(1));
-        assertThrows(IllegalArgumentException.class, () -> new LoanDao(jdbc).markReturned(loan));
-        verifyNoInteractions(jdbc);
+    void protectedFieldsDoNotExposePublicSetters() {
+        assertThrows(
+                NoSuchMethodException.class,
+                () -> Book.class.getMethod("setAvailableCopies", int.class));
+        assertThrows(NoSuchMethodException.class, () -> Book.class.getMethod("setId", UUID.class));
+        assertThrows(
+                NoSuchMethodException.class,
+                () -> Loan.class.getMethod("setReturnTime", OffsetDateTime.class));
+        assertThrows(
+                NoSuchMethodException.class, () -> Reader.class.getMethod("setId", UUID.class));
     }
 }

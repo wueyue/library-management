@@ -1,5 +1,6 @@
 package com.example.library.model;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,13 +12,23 @@ import java.util.UUID;
 @Getter
 @Setter
 public final class Book {
+    @Setter(AccessLevel.NONE)
     private UUID id;
+
     private String title;
     private String author;
     private String description;
+
+    @Setter(AccessLevel.NONE)
     private int totalCopies;
+
+    @Setter(AccessLevel.NONE)
     private int availableCopies;
+
+    @Setter(AccessLevel.NONE)
     private OffsetDateTime createTime;
+
+    @Setter(AccessLevel.NONE)
     private OffsetDateTime updateTime;
 
     public Book(

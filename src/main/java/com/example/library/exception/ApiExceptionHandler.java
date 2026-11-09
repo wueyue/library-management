@@ -30,7 +30,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> business(BusinessException e, HttpServletRequest r) {
-        return response(e.getStatus(), e.getCode(), e.getMessage(), r);
+        return response(status(e.getErrorCode()), e.getCode(), e.getMessage(), r);
     }
 
     @ExceptionHandler({
@@ -41,33 +41,45 @@ public class ApiExceptionHandler {
         HandlerMethodValidationException.class
     })
     public ResponseEntity<ErrorResponse> invalid(Exception e, HttpServletRequest r) {
-        return response(400, "INVALID_ARGUMENT", "请求参数不合法", r);
+        return response(400, ErrorCode.INVALID_ARGUMENT.name(), "请求参数不合法", r);
     }
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErrorResponse> database(DataAccessException e, HttpServletRequest r) {
-        // 精确匹配目标唯一索引，不将其他数据库错误误报为重复借阅。
-        for (Throwable c = e; c != null; c = c.getCause()) {
-            if (c instanceof org.postgresql.util.PSQLException sql
-                    && "23505".equals(sql.getSQLState())
-                    && sql.getServerErrorMessage() != null
-                    && "uq_active_loan".equals(sql.getServerErrorMessage().getConstraint()))
-                return response(409, "BOOK_ALREADY_BORROWED", "你已借阅这本书，请先归还", r);
-            if (c instanceof org.postgresql.util.PSQLException sql
-                    && "23505".equals(sql.getSQLState())
-                    && sql.getServerErrorMessage() != null
-                    && "uq_reader_student_number"
-                            .equals(sql.getServerErrorMessage().getConstraint()))
-                return response(409, "STUDENT_NUMBER_ALREADY_EXISTS", "学号已存在", r);
-        }
         if (e instanceof org.springframework.jdbc.CannotGetJdbcConnectionException)
-            return response(503, "SERVICE_BUSY", "数据库暂不可用", r);
+            return response(503, ErrorCode.SERVICE_BUSY.name(), "数据库暂不可用", r);
         return unexpected(e, r);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> unexpected(Exception e, HttpServletRequest r) {
+        if (e instanceof org.springframework.web.ErrorResponse http) {
+            int status = http.getStatusCode().value();
+            ErrorCode code =
+                    switch (status) {
+                        case 400 -> ErrorCode.INVALID_ARGUMENT;
+                        case 404 -> ErrorCode.NOT_FOUND;
+                        case 405 -> ErrorCode.METHOD_NOT_ALLOWED;
+                        case 415 -> ErrorCode.UNSUPPORTED_MEDIA_TYPE;
+                        default -> ErrorCode.HTTP_ERROR;
+                    };
+            var result = response(status, code.name(), "HTTP 请求不受支持", r);
+            return ResponseEntity.status(status).headers(http.getHeaders()).body(result.getBody());
+        }
         log.error("request failed: {}", r.getAttribute("requestId"), e);
-        return response(500, "INTERNAL_ERROR", "服务内部错误", r);
+        return response(500, ErrorCode.INTERNAL_ERROR.name(), "服务内部错误", r);
+    }
+
+    private static int status(ErrorCode code) {
+        return switch (code) {
+            case INVALID_ARGUMENT -> 400;
+            case UNAUTHENTICATED -> 401;
+            case BOOK_NOT_FOUND, LOAN_NOT_FOUND, NOT_FOUND -> 404;
+            case BOOK_ALREADY_BORROWED, BOOK_OUT_OF_STOCK, STUDENT_NUMBER_ALREADY_EXISTS -> 409;
+            case SERVICE_BUSY -> 503;
+            case METHOD_NOT_ALLOWED -> 405;
+            case UNSUPPORTED_MEDIA_TYPE -> 415;
+            default -> 500;
+        };
     }
 }

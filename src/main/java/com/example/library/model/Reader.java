@@ -1,5 +1,6 @@
 package com.example.library.model;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,10 +12,16 @@ import java.util.UUID;
 @Getter
 @Setter
 public final class Reader {
+    @Setter(AccessLevel.NONE)
     private UUID id;
+
     private String name;
     private String studentNumber;
+
+    @Setter(AccessLevel.NONE)
     private OffsetDateTime createTime;
+
+    @Setter(AccessLevel.NONE)
     private OffsetDateTime updateTime;
 
     public Reader(

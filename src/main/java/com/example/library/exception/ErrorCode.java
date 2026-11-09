@@ -1,0 +1,18 @@
+package com.example.library.exception;
+
+/** 业务和协议错误标识；HTTP 状态仅由接口异常处理器映射。 */
+public enum ErrorCode {
+    INVALID_ARGUMENT,
+    UNAUTHENTICATED,
+    BOOK_NOT_FOUND,
+    LOAN_NOT_FOUND,
+    BOOK_ALREADY_BORROWED,
+    BOOK_OUT_OF_STOCK,
+    STUDENT_NUMBER_ALREADY_EXISTS,
+    SERVICE_BUSY,
+    INTERNAL_ERROR,
+    NOT_FOUND,
+    METHOD_NOT_ALLOWED,
+    UNSUPPORTED_MEDIA_TYPE,
+    HTTP_ERROR
+}

@@ -1,20 +1,18 @@
 package com.example.library.exception;
 
 public class BusinessException extends RuntimeException {
-    private final int status;
-    private final String code;
+    private final ErrorCode errorCode;
 
-    public BusinessException(int status, String code, String message) {
+    public BusinessException(ErrorCode errorCode, String message) {
         super(message);
-        this.status = status;
-        this.code = code;
+        this.errorCode = java.util.Objects.requireNonNull(errorCode);
     }
 
-    public int getStatus() {
-        return status;
+    public ErrorCode getErrorCode() {
+        return errorCode;
     }
 
     public String getCode() {
-        return code;
+        return errorCode.name();
     }
 }

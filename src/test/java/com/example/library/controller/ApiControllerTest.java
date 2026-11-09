@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.library.command.*;
 import com.example.library.exception.BusinessException;
+import com.example.library.exception.ErrorCode;
 import com.example.library.model.*;
 import com.example.library.service.BookService;
 import com.example.library.service.LoanService;
@@ -67,7 +68,7 @@ class ApiControllerTest {
     @Test
     void businessErrorKeepsRequestId() throws Exception {
         when(readerService.authenticate(null))
-                .thenThrow(new BusinessException(401, "UNAUTHENTICATED", "读者身份无效"));
+                .thenThrow(new BusinessException(ErrorCode.UNAUTHENTICATED, "读者身份无效"));
         mvc.perform(get("/api/v1/me/loans"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.request_id").exists())
@@ -220,17 +221,37 @@ class ApiControllerTest {
 
     @Test
     void duplicateReaderNumberReturns409() throws Exception {
-        var serverError =
-                new org.postgresql.util.ServerErrorMessage(
-                        "SERROR\0C23505\0Mduplicate\0nuq_reader_student_number\0");
-        var sql = new org.postgresql.util.PSQLException(serverError);
         when(readerService.createReader(any()))
-                .thenThrow(new org.springframework.dao.DuplicateKeyException("duplicate", sql));
+                .thenThrow(new BusinessException(ErrorCode.STUDENT_NUMBER_ALREADY_EXISTS, "学号已存在"));
         mvc.perform(
                         post("/api/v1/readers/insert")
                                 .contentType("application/json")
                                 .content("{\"name\":\"张三\",\"student_number\":\"20260001\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NUMBER_ALREADY_EXISTS"));
+    }
+
+    @Test
+    void frameworkErrorsKeepHttpStatusAndAllowHeader() throws Exception {
+        mvc.perform(get("/api/v1/unknown"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
+        mvc.perform(delete("/api/v1/books"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().exists("Allow"));
+        mvc.perform(post("/api/v1/books/insert").contentType("text/plain").content("test"))
+                .andExpect(status().isUnsupportedMediaType());
+    }
+
+    @Test
+    void fractionalStockIsRejectedBeforeBusinessCall() throws Exception {
+        mvc.perform(
+                        post("/api/v1/books/insert")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"title\":\"Java\",\"author\":\"author\",\"total_copies\":1.9}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+        verify(bookService, never()).createBook(any());
     }
 }

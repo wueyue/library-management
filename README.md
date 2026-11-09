@@ -55,7 +55,7 @@ mvn test
 
 ## 本次验证结果
 
-Java 21 下编译、JAR 打包成功，31 项 Command、领域、DAO 校验、业务转换及 HTTP 接口测试通过。8 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL
+Java 21 下编译、JAR 打包成功，34 项 Command、领域、DAO 校验、业务转换及 HTTP 接口测试通过。11 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL  
 受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
 
 ## 代码结构与实现说明
@@ -114,10 +114,10 @@ src/main/java/com/example/library/
 
 三个 Controller 分别仅处理图书、读者和借阅接口；LoanController 额外调用 ReaderService 解析演示身份。各 ServiceImpl 调用对应 DAO，借阅与库存修改仍在同一事务内。
 
-事务通过共享 WriteTransactionExecutor 中的 TransactionTemplate 显式执行，避免同类调用导致声明式事务失效。隔离级别 READ COMMITTED，统一先锁图书再锁借阅。数据库时钟生成借还时间，确保 Loan 的 borrow_time /
+事务通过共享 WriteTransactionExecutor 中的 TransactionTemplate 显式执行，避免同类调用导致声明式事务失效。隔离级别 READ COMMITTED，统一先锁图书再锁借阅。数据库时钟生成借还时间，确保 Loan 的 borrow_time /  
 return_time 与对应 update_time 完全一致。未实现图书/读者修改接口，未来新增信息更新时必须同步设置 update_time。
 
-图书列表直接复用 Book DTO，因此比下方最小 API 示例多返回 description 和 create_time。当前版本以 Controller 的 JavaDoc、Models 及本 README 提供接口定义，没有启用 Swagger
+图书列表直接复用 Book DTO，因此比下方最小 API 示例多返回 description 和 create_time。当前版本以 Controller 的 JavaDoc、Models 及本 README 提供接口定义，没有启用 Swagger  
 页面。身份头只模拟身份，不代表生产认证。数据库连接不可用返回 503，提交结果未知时不自动重试。
 
 ---
@@ -166,39 +166,39 @@ HTTP 层负责协议转换和错误映射；服务层负责借阅与归还流程
 
 ### 4.1 Book
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| id | UUID | 是 | 图书标识 |
-| title | varchar(255) | 是 | 书名 |
-| author | varchar(255) | 是 | 作者或作者展示文本 |
-| description | text | 否 | 简介 |
-| total_copies | integer | 是 | 总许可数，非负 |
-| available_copies | integer | 是 | 当前可借许可数 |
-| create_time | timestamptz | 是 | 创建时间 |
-| update_time | timestamptz | 是 | 最近更新时间 |
+| 字段               | 类型           | 必填 | 说明        |
+| ---------------- | ------------ | -- | --------- |
+| id               | UUID         | 是  | 图书标识      |
+| title            | varchar(255) | 是  | 书名        |
+| author           | varchar(255) | 是  | 作者或作者展示文本 |
+| description      | text         | 否  | 简介        |
+| total_copies     | integer      | 是  | 总许可数，非负   |
+| available_copies | integer      | 是  | 当前可借许可数   |
+| create_time      | timestamptz  | 是  | 创建时间      |
+| update_time      | timestamptz  | 是  | 最近更新时间    |
 
 ### 4.2 Reader
 
 读者以 student_number（学号）作为业务唯一标识；id 作为内部主键和借阅外键。
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| id | UUID | 是 | 读者标识 |
-| name | varchar(100) | 是 | 展示名称 |
-| student_number | varchar(64) | 是 | 学号，唯一，保留前导零 |
-| create_time | timestamptz | 是 | 创建时间 |
-| update_time | timestamptz | 是 | 最近更新时间 |
+| 字段             | 类型           | 必填 | 说明          |
+| -------------- | ------------ | -- | ----------- |
+| id             | UUID         | 是  | 读者标识        |
+| name           | varchar(100) | 是  | 展示名称        |
+| student_number | varchar(64)  | 是  | 学号，唯一，保留前导零 |
+| create_time    | timestamptz  | 是  | 创建时间        |
+| update_time    | timestamptz  | 是  | 最近更新时间      |
 
 ### 4.3 Loan
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| id | UUID | 是 | 单次借阅标识 |
-| reader_id | UUID | 是 | 读者外键 |
-| book_id | UUID | 是 | 图书外键 |
-| borrow_time | timestamptz | 是 | 借阅时间 |
-| return_time | timestamptz | 否 | 归还时间；空表示有效借阅 |
-| update_time | timestamptz | 是 | 最近更新时间 |
+| 字段          | 类型          | 必填 | 说明           |
+| ----------- | ----------- | -- | ------------ |
+| id          | UUID        | 是  | 单次借阅标识       |
+| reader_id   | UUID        | 是  | 读者外键         |
+| book_id     | UUID        | 是  | 图书外键         |
+| borrow_time | timestamptz | 是  | 借阅时间         |
+| return_time | timestamptz | 否  | 归还时间；空表示有效借阅 |
+| update_time | timestamptz | 是  | 最近更新时间       |
 
 不存储独立 status 字段，避免状态与 return_time 不一致。API 根据 return_time 派生 BORROWED 或 RETURNED。
 
@@ -288,7 +288,7 @@ CREATE INDEX idx_books_listing ON books (create_time DESC, id DESC);
 
 ### 4.5 更新时间规则
 
-Book、Reader、Loan 均包含 update_time。创建时设置为创建时刻；持久化信息实际发生修改时更新为当前 UTC 时间。Book 的元数据修改、借阅扣减库存及归还增加库存均更新 update_time；Reader 信息修改时更新 update_time；Loan 创建时
+Book、Reader、Loan 均包含 update_time。创建时设置为创建时刻；持久化信息实际发生修改时更新为当前 UTC 时间。Book 的元数据修改、借阅扣减库存及归还增加库存均更新 update_time；Reader 信息修改时更新 update_time；Loan 创建时  
 update_time 等于 borrow_time，首次归还时 update_time 等于 return_time。重复归还及没有实际变化的请求不刷新 update_time。
 
 更新时间由服务端在写入语句中设置，并与业务更新在同一事务内提交，不能接受客户端传入。DEFAULT 仅负责插入默认值，不会自动处理 UPDATE。
@@ -380,6 +380,7 @@ book_id 为必填 UUID；不接受 reader_id、借阅时间、状态等由服务
 }
 ```
 
+
 返回对象为 Loan，update_time 为 RFC 3339 时间字符串。book_id、reader_id、id 为 UUID 字符串，status 为枚举，borrow_time 为时间字符串，return_time 为时间字符串或 null。
 
 业务错误：404 BOOK_NOT_FOUND；409 BOOK_ALREADY_BORROWED；409 BOOK_OUT_OF_STOCK。重复借阅检查优先于库存检查，因此已借阅者在库存为零时仍得到 BOOK_ALREADY_BORROWED。
@@ -449,17 +450,17 @@ items 的字段为 Loan 加 book（id、title、author），通过关联查询�
 }
 ```
 
-| HTTP | code | 场景 |
-|---|---|---|
-| 400 | INVALID_ARGUMENT | JSON 错误、参数缺失、字段类型错误、未知请求字段、分页越界 |
-| 401 | UNAUTHENTICATED | 身份头缺失、无效或读者不存在 |
-| 404 | BOOK_NOT_FOUND | 图书不存在 |
-| 404 | LOAN_NOT_FOUND | 借阅不存在或属于其他读者 |
-| 409 | STUDENT_NUMBER_ALREADY_EXISTS | 学号已录入 |
-| 409 | BOOK_ALREADY_BORROWED | 已存在有效借阅 |
-| 409 | BOOK_OUT_OF_STOCK | 可借库存不足 |
-| 503 | SERVICE_BUSY | 锁等待超时或可重试事务冲突重试耗尽 |
-| 500 | INTERNAL_ERROR | 非预期错误或数据不变量被破坏 |
+| HTTP | code                          | 场景                              |
+| ---- | ----------------------------- | ------------------------------- |
+| 400  | INVALID_ARGUMENT              | JSON 错误、参数缺失、字段类型错误、未知请求字段、分页越界 |
+| 401  | UNAUTHENTICATED               | 身份头缺失、无效或读者不存在                  |
+| 404  | BOOK_NOT_FOUND                | 图书不存在                           |
+| 404  | LOAN_NOT_FOUND                | 借阅不存在或属于其他读者                    |
+| 409  | STUDENT_NUMBER_ALREADY_EXISTS | 学号已录入                           |
+| 409  | BOOK_ALREADY_BORROWED         | 已存在有效借阅                         |
+| 409  | BOOK_OUT_OF_STOCK             | 可借库存不足                          |
+| 503  | SERVICE_BUSY                  | 锁等待超时或可重试事务冲突重试耗尽               |
+| 500  | INTERNAL_ERROR                | 非预期错误或数据不变量被破坏                  |
 
 只将命中 uq_active_loan 的唯一冲突映射为重复借阅；其他约束错误不能统一映射成 409。数据库异常后先回滚，再转换错误。响应不暴露 SQL、堆栈或连接信息。
 
@@ -614,21 +615,21 @@ sequenceDiagram
 
 并发测试使用真实 PostgreSQL、独立连接和同步起跑屏障，不使用单连接串行调用或数据库 Mock 代替。
 
-| 测试场景 | 验收结果 |
-|---|---|
-| 正常借阅和归还 | 创建记录、状态和库存变化正确 |
-| 无库存借阅 | 409，库存和记录不变 |
-| 同一读者重复借阅 | 409，只有一条有效记录 |
-| 归还后再次借阅 | 成功创建新的记录，历史记录保留 |
-| 重复归还 | 200，归还时间保持不变，库存仅增加一次 |
-| 访问他人借阅 | 404，数据无变化 |
-| 库存 1，20 位读者并发借阅 | 测试超时内完成时恰好 1 次成功，其余库存冲突；库存 0 |
-| 库存 20，同一读者 20 次并发借阅 | 恰好 1 次成功，其余重复借阅；库存 19 |
-| 同一借阅 20 次并发归还 | 全部成功，库存只加 1 |
-| 归还与其他读者借阅并发 | 结果符合某个串行顺序，无负库存；先到的借阅可能因库存不足失败 |
-| 在库存扣减后模拟记录写入失败 | 借阅与库存全部回滚 |
-| 在归还更新后模拟库存更新失败 | 归还状态回滚，库存保持原值 |
-| 锁等待超时 | 返回 503，事务回滚，无部分写入 |
+| 测试场景                | 验收结果                           |
+| ------------------- | ------------------------------ |
+| 正常借阅和归还             | 创建记录、状态和库存变化正确                 |
+| 无库存借阅               | 409，库存和记录不变                    |
+| 同一读者重复借阅            | 409，只有一条有效记录                   |
+| 归还后再次借阅             | 成功创建新的记录，历史记录保留                |
+| 重复归还                | 200，归还时间保持不变，库存仅增加一次           |
+| 访问他人借阅              | 404，数据无变化                      |
+| 库存 1，20 位读者并发借阅     | 测试超时内完成时恰好 1 次成功，其余库存冲突；库存 0   |
+| 库存 20，同一读者 20 次并发借阅 | 恰好 1 次成功，其余重复借阅；库存 19          |
+| 同一借阅 20 次并发归还       | 全部成功，库存只加 1                    |
+| 归还与其他读者借阅并发         | 结果符合某个串行顺序，无负库存；先到的借阅可能因库存不足失败 |
+| 在库存扣减后模拟记录写入失败      | 借阅与库存全部回滚                      |
+| 在归还更新后模拟库存更新失败      | 归还状态回滚，库存保持原值                  |
+| 锁等待超时               | 返回 503，事务回滚，无部分写入              |
 
 每个并发测试结束后验证：库存范围合法；不存在重复有效借阅；available_copies = total_copies − 有效借阅数量。功能测试另覆盖参数验证、身份错误、分页和空列表。
 
@@ -638,7 +639,6 @@ sequenceDiagram
 
 保留 available_copies 使库存读取和条件扣减简单，代价是必须维护跨表一致性；图书行锁便于审查和验证，代价是热门图书写请求串行执行。对于本次作业规模，这是清晰且可维护的选择。后续若引入库存管理、自动归还或批量借阅，需要重新审查所有写入路径和锁顺序。
 
-
 ## 新增：图书与读者录入接口
 
 读者沿用 Reader 实体与 readers 表，姓名和学号均必填，以学号唯一识别读者，允许同名。两接口用于演示，无需身份头；生产环境的图书和读者管理需要管理员授权。图书每次 POST 创建独立 UUID，不按书名去重；读者按学号去重，不提供请求键幂等。
@@ -647,12 +647,12 @@ sequenceDiagram
 
 录入图书，成功返回 201，响应为完整 Book（id、title、author、description、total_copies、available_copies、create_time、update_time）。
 
-| 入参 | 类型 | 规则 |
-|---|---|---|
-| title | string | 必填，非空白，最多 255 字 |
-| author | string | 必填，非空白，最多 255 字 |
-| description | string/null | 可选 |
-| total_copies | integer | 必填，非负；0 表示暂不可借 |
+| 入参           | 类型          | 规则              |
+| ------------ | ----------- | --------------- |
+| title        | string      | 必填，非空白，最多 255 字 |
+| author       | string      | 必填，非空白，最多 255 字 |
+| description  | string/null | 可选              |
+| total_copies | integer     | 必填，非负；0 表示暂不可借  |
 
 ```json
 {"title":"Java 入门","author":"示例作者","description":"Java 基础","total_copies":3}
@@ -662,7 +662,7 @@ sequenceDiagram
 
 ### POST /api/v1/readers/insert
 
-录入读者，name 为必填非空白字符串，最多 100 字；student_number 为必填非空白字符串，最多 64 字。两者保存时去除首尾空白；学号大小写敏感，以字符串保存并保留前导零。数据库唯一约束防止重复学号，重复时返回 409
+录入读者，name 为必填非空白字符串，最多 100 字；student_number 为必填非空白字符串，最多 64 字。两者保存时去除首尾空白；学号大小写敏感，以字符串保存并保留前导零。数据库唯一约束防止重复学号，重复时返回 409  
 STUDENT_NUMBER_ALREADY_EXISTS。成功返回 201：
 
 ```json
@@ -705,7 +705,7 @@ curl -X POST http://localhost:8080/api/v1/loans/<loan_id>/return \
 
 新增 student_number：姓名可以重复，学号必须唯一。录入接口的 student_number 为必填字段，返回对象同样包含该字段。现有 X-Reader-Id 继续使用读者内部 UUID；学号用于业务识别和录入去重，不作为认证凭证。借阅记录的 reader_id 外键保持有效。
 
-迁移采用 `V2__add_student_number.sql`，不修改已执行的 V1 校验和。新库依次执行 V1、V2；旧库先添加字段，再给旧读者分配 `LEGACY-<原 UUID>` 唯一临时编号，更新
+迁移采用 `V2__add_student_number.sql`，不修改已执行的 V1 校验和。新库依次执行 V1、V2；旧库先添加字段，再给旧读者分配 `LEGACY-<原 UUID>` 唯一临时编号，更新  
 update_time，最后施加非空和唯一约束。临时编号不是真实学号，上线前应按实际读者名册核对并补录；修改学号时须同时更新 update_time。本文建表 SQL 展示最终结构，实际升级以 Flyway 迁移为准。
 
 录入相同学号的并发请求由唯一约束保证最多一条成功；冲突请求回滚并返回 409。学号去除首尾空白后比较，大小写敏感，前导零保留。例如 `00123` 和 `123` 是不同学号。同名且不同学号可分别创建读者。
@@ -714,7 +714,7 @@ update_time，最后施加非空和唯一约束。临时编号不是真实学号
 
 ## 独立领域模型与持久化映射
 
-`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的Java class，使用私有字段、校验构造方法和 Lombok @Getter / @Setter 生成的访问器，与 API DTO 分离。API 请求响应使用
+`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的Java class，使用私有字段、校验构造方法和 Lombok @Getter / @Setter 生成的访问器，与 API DTO 分离。API 请求响应使用  
 `dto/Models.java` 中的类型，写操作的应用层入参使用 `command` 包中的类型；响应分别为 BookResponse、ReaderResponse、LoanResponse。`dto/ResponseMapper.java` 负责领域对象到响应的显式转换。
 
 ```mermaid
@@ -735,29 +735,13 @@ flowchart LR
 - DAO 的 createBook、createReader、createLoan、markReturned、decrement、increment 只接受领域对象，不接受请求 DTO。查询也先映射为领域对象，再转换响应；当前借阅使用一次关联查询，避免逐条查询图书。
 - 时间由 Service 在事务中从数据库获取，再传入领域工厂或状态方法；借还操作在拿到图书锁后取时间。模型实例创建、状态变更和持久化仍由原有事务整体保护。
 
-读者录入路径统一为 `POST /api/v1/readers/insert`，请求示例：`{"name":"张三","student_number":"00123"}`。`student_number` 继续表示学号，`STUDENT_NUMBER_ALREADY_EXISTS`
+读者录入路径统一为 `POST /api/v1/readers/insert`，请求示例：`{"name":"张三","student_number":"00123"}`。`student_number` 继续表示学号，`STUDENT_NUMBER_ALREADY_EXISTS`  
 继续表示学号冲突；这些业务字段并非 Student 实体命名。历史迁移 `V2__add_student_number.sql` 保持名称和内容不变，避免破坏已有 Flyway 迁移记录。内部表 readers 和借阅外键 reader_id 保持不变，不需要新增数据库迁移。
-
-## Lombok
-
-Book、Reader、Loan 使用 `@Getter`、`@Setter` 自动生成字段访问器，通过 @Setter 提供字段设置方法，保留包含业务校验的显式构造方法，以及领域工厂和状态变更方法。Loan.getStatus() 继续根据 returnTime 计算。Maven 配置
-Lombok 注解处理器，版本由 Spring Boot 父 POM 管理；Lombok 只在编译期使用，不打入可执行 JAR。命令行 Maven 编译无需 IDE 插件；IDE 中需开启注解处理。
-
-## Service 接口与独立 DAO
-
-Controller 依赖 BookService、ReaderService、LoanService 接口，由 Spring 注入 service.impl 中的对应实现。实现类编排业务和事务，通过 dto.persistence 下的 BookDao、ReaderDao、LoanDao
-访问数据库；领域类只包含数据和领域规则，不包含 SQL 或 JDBC 依赖。按本项目的目录约定，DAO 位于 dto.persistence，纯 API DTO 仍位于 dto.Models，两者职责分开。
-
-三个领域类使用 @Getter、@Setter，字段不再为 final。setter 只修改对象，不执行数据库操作；每个 DAO 写入前调用领域对象 validate()，拒绝空必填字段、非法库存及早于借阅时间的归还时间。Controller 将请求 DTO 转换为
-Command，BookServiceImpl、ReaderServiceImpl 再将 Command 转换为领域对象；LoanServiceImpl 在同一个事务中锁定图书，再更新借阅和库存。模型对象仅在单次业务操作内使用。
-
-DatabaseAccess 统一提供数据库时钟与锁等待设置，WriteTransactionExecutor 保留 READ COMMITTED、事务回滚和有限重试规则。DAO 不自行提交事务，三个 DAO 使用相同数据源，受同一个 Spring 事务管理器管理。API 路径、JSON
-格式、数据库迁移及唯一约束保持不变。
 
 ## Request → Command → 领域对象 → DAO
 
-Controller 接收并验证 HTTP Request，将有效入参构造为应用层 Command。BookService、ReaderService、LoanService 接口和实现不再依赖 API 请求/响应 DTO；写操作分别接收
-CreateBookCommand、CreateReaderCommand、BorrowLoanCommand、ReturnLoanCommand。读操作保持 UUID、分页参数，返回领域对象或 PageResult，而非 API Page。当前借阅结果使用 CurrentBorrowing
+Controller 接收并验证 HTTP Request，将有效入参构造为应用层 Command。BookService、ReaderService、LoanService 接口和实现不再依赖 API 请求/响应 DTO；写操作分别接收  
+CreateBookCommand、CreateReaderCommand、BorrowLoanCommand、ReturnLoanCommand。读操作保持 UUID、分页参数，返回领域对象或 PageResult，而非 API Page。当前借阅结果使用 CurrentBorrowing  
 查询模型。
 
 ```mermaid
@@ -773,17 +757,36 @@ flowchart TD
     I --> J[响应 DTO / JSON]
 ```
 
-Command 为不可变 record，自身检查必填、长度、库存非负及操作标识，且不包含 Jackson、HTTP 或 Jakarta Validation 注解。这样非 HTTP 调用方也不能绕过基础校验。领域工厂和 DAO 仍分别负责领域规则与写入前校验。Controller 负责把
+Command 为不可变 record，自身检查必填、长度、库存非负及操作标识，且不包含 Jackson、HTTP 或 Jakarta Validation 注解。这样非 HTTP 调用方也不能绕过基础校验。领域工厂和 DAO 仍分别负责领域规则与写入前校验。Controller 负责把  
 Service 返回的 Book、Reader、Loan、PageResult 映射到原 API 响应，JSON 格式和接口路径保持不变。
 
 测试新增 Command 非 HTTP 输入校验、Controller 请求到 Command 的字段转换，以及领域查询结果到 API 响应的映射验证。数据库锁顺序、事务边界、重试规则和 Flyway 迁移保持不变。
 
 ## 代码格式
 
-项目源文件每行不超过 150 个字符，Java 使用 4 空格缩进，代码块左右花括号分行显示，空方法与 record 也展开。
-字符串和注释中的花括号不作为代码块处理。空 repository 目录已移除，数据库访问仍在 dto.persistence 下。
+项目源文件每行不超过 150 个字符，Java 使用 4 空格缩进，代码块左右花括号分行显示，空方法与 record 也展开。  
+字符串和注释中的花括号不作为代码块处理。空 repository 目录已移除，数据库访问仍在 dto.persistence 下。  
 编辑器配置见 .editorconfig。可执行以下格式检查，验证 Java、SQL、配置和 README 的行长，以及 Java 代码花括号：
 
 ```bash
 python3 tools/check_format.py
+```
+
+## 检查后的改进
+
+- 框架产生的 HTTP 错误保留状态码和协议头：不存在的路径返回 404，不支持的方法返回 405 并保留 Allow，媒体类型错误返回 415。
+- JSON 库存必须是整数，禁止将 1.9 自动截断为 1，参数不合法返回 400。
+- Lombok 仅对普通信息字段提供公开 Setter。ID、库存、借阅外键、借还时间与审计时间禁止公开设置，仍通过领域工厂或业务方法管理。
+- 加锁查询使用 findByIdForUpdate、findOwnedByIdForUpdate，普通查询使用 findById、findOwnedById。
+- ErrorCode 枚举定义错误标识，BusinessException 不携带 HTTP 状态；ApiExceptionHandler 统一映射状态。
+- 唯一约束冲突在事务回滚后由 DatabaseExceptionTranslator 转为业务异常，非 HTTP 调用方同样得到重复学号或重复借阅错误。
+
+GitHub Actions 的 CI 使用 PostgreSQL 17 自动运行构建、格式及全部数据库测试，并拒绝存在跳过测试的结果。
+测试新增锁等待超时、并发重复学号录入和 V1→V2 迁移保护借阅关系。没有配置本地 TEST_DB_URL 时，11 项数据库测试仍会明确跳过。
+
+```bash
+mvn verify
+python3 tools/check_format.py
+# CI 在执行全部测试后额外检查没有跳过项
+python3 tools/check_ci_tests.py
 ```

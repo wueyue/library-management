@@ -1,6 +1,7 @@
 package com.example.library.dto.persistence;
 
 import com.example.library.exception.BusinessException;
+import com.example.library.exception.ErrorCode;
 import com.example.library.model.Book;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -67,19 +68,27 @@ public class BookDao {
                 (long) (page - 1) * size);
     }
 
-    public Book book(UUID id, boolean lock) {
+    public Book findById(UUID id) {
+        return find(id, false);
+    }
+
+    public Book findByIdForUpdate(UUID id) {
+        return find(id, true);
+    }
+
+    private Book find(UUID id, boolean lock) {
         return jdbc
                 .query("SELECT * FROM books WHERE id=?" + (lock ? " FOR UPDATE" : ""), BOOK, id)
                 .stream()
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(404, "BOOK_NOT_FOUND", "图书不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.BOOK_NOT_FOUND, "图书不存在"));
     }
 
     public int decrement(Book updated) {
         updated.validate();
         return jdbc.update(
                 "UPDATE books SET available_copies=?,update_time=? WHERE id=? AND"
-                    + " available_copies=? AND available_copies>0",
+                        + " available_copies=? AND available_copies>0",
                 updated.getAvailableCopies(),
                 updated.getUpdateTime(),
                 updated.getId(),
@@ -90,7 +99,7 @@ public class BookDao {
         updated.validate();
         return jdbc.update(
                 "UPDATE books SET available_copies=?,update_time=? WHERE id=? AND"
-                    + " available_copies=? AND available_copies<total_copies",
+                        + " available_copies=? AND available_copies<total_copies",
                 updated.getAvailableCopies(),
                 updated.getUpdateTime(),
                 updated.getId(),

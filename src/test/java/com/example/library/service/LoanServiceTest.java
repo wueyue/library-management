@@ -48,7 +48,7 @@ class LoanServiceTest {
         readers = new ReaderServiceImpl(readerDao, tx);
         // lenient：身份校验测试不会访问数据库，其他测试按需使用。
         lenient()
-                .when(bookDao.book(book, true))
+                .when(bookDao.findByIdForUpdate(book))
                 .thenReturn(new Book(book, "图书", "作者", null, 2, 1, now, now));
         lenient().when(database.now()).thenReturn(now);
         lenient().when(loanDao.createLoan(any(Loan.class))).thenAnswer(i -> i.getArgument(0));
@@ -61,7 +61,7 @@ class LoanServiceTest {
         assertEquals("BORROWED", service.borrow(new BorrowLoanCommand(reader, book)).getStatus());
         var order = inOrder(database, bookDao, readerDao, loanDao, manager);
         order.verify(database).lockTimeout();
-        order.verify(bookDao).book(book, true);
+        order.verify(bookDao).findByIdForUpdate(book);
         order.verify(loanDao).activeLoan(reader, book);
         order.verify(database).now();
         order.verify(bookDao).decrement(argThat(b -> b.getAvailableCopies() == 0));
@@ -86,7 +86,8 @@ class LoanServiceTest {
 
     @Test
     void noStockDoesNotCreateLoan() {
-        when(bookDao.book(book, true)).thenReturn(new Book(book, "图书", "作者", null, 1, 0, now, now));
+        when(bookDao.findByIdForUpdate(book))
+                .thenReturn(new Book(book, "图书", "作者", null, 1, 0, now, now));
         assertEquals(
                 "BOOK_OUT_OF_STOCK",
                 assertThrows(
@@ -112,8 +113,8 @@ class LoanServiceTest {
     @Test
     void returnIsIdempotent() {
         var returned = loan(true);
-        when(loanDao.ownedLoan(id, reader, false)).thenReturn(returned);
-        when(loanDao.ownedLoan(id, reader, true)).thenReturn(returned);
+        when(loanDao.findOwnedById(id, reader)).thenReturn(returned);
+        when(loanDao.findOwnedByIdForUpdate(id, reader)).thenReturn(returned);
         assertEquals(
                 returned.getReturnTime(),
                 service.returnBook(new ReturnLoanCommand(reader, id)).getReturnTime());
@@ -123,15 +124,15 @@ class LoanServiceTest {
 
     @Test
     void returnUsesConsistentLockOrder() {
-        when(loanDao.ownedLoan(id, reader, false)).thenReturn(loan(false));
-        when(loanDao.ownedLoan(id, reader, true)).thenReturn(loan(false));
+        when(loanDao.findOwnedById(id, reader)).thenReturn(loan(false));
+        when(loanDao.findOwnedByIdForUpdate(id, reader)).thenReturn(loan(false));
         when(bookDao.increment(any(Book.class))).thenReturn(1);
         assertEquals("RETURNED", service.returnBook(new ReturnLoanCommand(reader, id)).getStatus());
         var order = inOrder(database, bookDao, readerDao, loanDao);
         order.verify(database).lockTimeout();
-        order.verify(loanDao).ownedLoan(id, reader, false);
-        order.verify(bookDao).book(book, true);
-        order.verify(loanDao).ownedLoan(id, reader, true);
+        order.verify(loanDao).findOwnedById(id, reader);
+        order.verify(bookDao).findByIdForUpdate(book);
+        order.verify(loanDao).findOwnedByIdForUpdate(id, reader);
         order.verify(database).now();
         order.verify(loanDao).markReturned(argThat(l -> l.getReturnTime().equals(now)));
         order.verify(bookDao).increment(argThat(b -> b.getAvailableCopies() == 2));
@@ -139,8 +140,8 @@ class LoanServiceTest {
 
     @Test
     void stockFailureRollsBackReturn() {
-        when(loanDao.ownedLoan(id, reader, false)).thenReturn(loan(false));
-        when(loanDao.ownedLoan(id, reader, true)).thenReturn(loan(false));
+        when(loanDao.findOwnedById(id, reader)).thenReturn(loan(false));
+        when(loanDao.findOwnedByIdForUpdate(id, reader)).thenReturn(loan(false));
         assertThrows(
                 IllegalStateException.class,
                 () -> service.returnBook(new ReturnLoanCommand(reader, id)));
@@ -150,13 +151,12 @@ class LoanServiceTest {
     @Test
     void invalidIdentityRejectedBeforeDatabaseAccess() {
         assertEquals(
-                401,
-                assertThrows(BusinessException.class, () -> readers.authenticate(null))
-                        .getStatus());
+                "UNAUTHENTICATED",
+                assertThrows(BusinessException.class, () -> readers.authenticate(null)).getCode());
         assertEquals(
-                401,
+                "UNAUTHENTICATED",
                 assertThrows(BusinessException.class, () -> readers.authenticate("invalid"))
-                        .getStatus());
+                        .getCode());
         verify(readerDao, never()).readerExists(any());
     }
 }

@@ -41,7 +41,7 @@ public class ReaderDao {
         reader.validate();
         return jdbc.queryForObject(
                 "INSERT INTO readers(id,name,student_number,create_time,update_time)"
-                    + " VALUES(?,?,?,?,?) RETURNING *",
+                        + " VALUES(?,?,?,?,?) RETURNING *",
                 READER,
                 reader.getId(),
                 reader.getName(),
