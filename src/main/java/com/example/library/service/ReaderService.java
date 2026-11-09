@@ -1,10 +1,11 @@
 package com.example.library.service;
 
+import com.example.library.command.*;
+import com.example.library.model.*;
 import java.util.UUID;
-import static com.example.library.dto.Models.*;
 
-/** Reader 业务接口，实现位于 service.impl。 */
+/** Reader 业务接口；不依赖 API 请求或响应 DTO。 */
 public interface ReaderService {
-    ReaderResponse createReader(CreateReaderRequest request);
+    Reader createReader(CreateReaderCommand command);
     UUID authenticate(String value);
 }

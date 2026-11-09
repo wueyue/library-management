@@ -1,5 +1,7 @@
 package com.example.library.service;
 
+import com.example.library.command.*;
+
 import com.example.library.dto.persistence.*;
 import com.example.library.service.impl.*;
 import com.example.library.exception.BusinessException;
@@ -39,7 +41,7 @@ class LoanServiceTest {
     }
     @Test void borrowLocksBeforeStockAndCreation() {
         when(bookDao.decrement(any(Book.class))).thenReturn(1);
-        assertEquals("BORROWED",service.borrow(reader,book).status());
+        assertEquals("BORROWED",service.borrow(new BorrowLoanCommand(reader,book)).getStatus());
         var order=inOrder(database,bookDao,readerDao,loanDao,manager);
         order.verify(database).lockTimeout();order.verify(bookDao).book(book,true);
         order.verify(loanDao).activeLoan(reader,book);order.verify(database).now();
@@ -49,31 +51,31 @@ class LoanServiceTest {
     }
     @Test void duplicateHasPriorityAndRollsBack() {
         when(loanDao.activeLoan(reader,book)).thenReturn(true);
-        assertEquals("BOOK_ALREADY_BORROWED",assertThrows(BusinessException.class,()->service.borrow(reader,book)).getCode());
+        assertEquals("BOOK_ALREADY_BORROWED",assertThrows(BusinessException.class,()->service.borrow(new BorrowLoanCommand(reader,book))).getCode());
         verify(bookDao,never()).decrement(any());verify(manager).rollback(any());
     }
     @Test void noStockDoesNotCreateLoan() {
         when(bookDao.book(book,true)).thenReturn(new Book(book,"图书","作者",null,1,0,now,now));
-        assertEquals("BOOK_OUT_OF_STOCK",assertThrows(BusinessException.class,()->service.borrow(reader,book)).getCode());
+        assertEquals("BOOK_OUT_OF_STOCK",assertThrows(BusinessException.class,()->service.borrow(new BorrowLoanCommand(reader,book))).getCode());
         verify(loanDao,never()).createLoan(any());verify(bookDao,never()).decrement(any());verify(manager).rollback(any());
     }
     @Test void insertFailureRollsBackTransaction() {
         when(bookDao.decrement(any(Book.class))).thenReturn(1);
         when(loanDao.createLoan(any(Loan.class))).thenThrow(new IllegalStateException("injected"));
-        assertThrows(IllegalStateException.class,()->service.borrow(reader,book));
+        assertThrows(IllegalStateException.class,()->service.borrow(new BorrowLoanCommand(reader,book)));
         verify(manager).rollback(any());verify(manager,never()).commit(any());
     }
     @Test void returnIsIdempotent() {
         var returned=loan(true);
         when(loanDao.ownedLoan(id,reader,false)).thenReturn(returned);
         when(loanDao.ownedLoan(id,reader,true)).thenReturn(returned);
-        assertEquals(returned.getReturnTime(),service.returnBook(reader,id).returnTime());
+        assertEquals(returned.getReturnTime(),service.returnBook(new ReturnLoanCommand(reader,id)).getReturnTime());
         verify(bookDao,never()).increment(any());verify(loanDao,never()).markReturned(any());
     }
     @Test void returnUsesConsistentLockOrder() {
         when(loanDao.ownedLoan(id,reader,false)).thenReturn(loan(false));when(loanDao.ownedLoan(id,reader,true)).thenReturn(loan(false));
         when(bookDao.increment(any(Book.class))).thenReturn(1);
-        assertEquals("RETURNED",service.returnBook(reader,id).status());
+        assertEquals("RETURNED",service.returnBook(new ReturnLoanCommand(reader,id)).getStatus());
         var order=inOrder(database,bookDao,readerDao,loanDao);
         order.verify(database).lockTimeout();order.verify(loanDao).ownedLoan(id,reader,false);
         order.verify(bookDao).book(book,true);order.verify(loanDao).ownedLoan(id,reader,true);order.verify(database).now();
@@ -82,7 +84,7 @@ class LoanServiceTest {
     }
     @Test void stockFailureRollsBackReturn() {
         when(loanDao.ownedLoan(id,reader,false)).thenReturn(loan(false));when(loanDao.ownedLoan(id,reader,true)).thenReturn(loan(false));
-        assertThrows(IllegalStateException.class,()->service.returnBook(reader,id));verify(manager).rollback(any());
+        assertThrows(IllegalStateException.class,()->service.returnBook(new ReturnLoanCommand(reader,id)));verify(manager).rollback(any());
     }
     @Test void invalidIdentityRejectedBeforeDatabaseAccess() {
         assertEquals(401,assertThrows(BusinessException.class,()->readers.authenticate(null)).getStatus());

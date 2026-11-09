@@ -55,7 +55,7 @@ mvn test
 
 ## 本次验证结果
 
-Java 21 下编译、JAR 打包成功，25 项领域、DAO 校验、业务转换及 HTTP 接口测试通过。8 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL 受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
+Java 21 下编译、JAR 打包成功，31 项 Command、领域、DAO 校验、业务转换及 HTTP 接口测试通过。8 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL 受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
 
 ## 代码结构与实现说明
 
@@ -66,10 +66,18 @@ src/main/java/com/example/library/
 │   ├── BookController.java
 │   ├── ReaderController.java
 │   └── LoanController.java
+├── command/                   # 应用操作入参，无 HTTP 依赖
+│   ├── CreateBookCommand.java
+│   ├── CreateReaderCommand.java
+│   ├── BorrowLoanCommand.java
+│   ├── ReturnLoanCommand.java
+│   └── CommandValidation.java
 ├── model/                     # 领域对象，不包含 SQL
 │   ├── Book.java
 │   ├── Reader.java
-│   └── Loan.java
+│   ├── Loan.java
+│   ├── PageResult.java
+│   └── CurrentBorrowing.java
 ├── dto/
 │   ├── Models.java             # 纯请求/响应 DTO
 │   ├── ResponseMapper.java
@@ -700,12 +708,12 @@ curl -X POST http://localhost:8080/api/v1/loans/<loan_id>/return \
 
 ## 独立领域模型与持久化映射
 
-`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的Java class，使用私有字段、校验构造方法和 Lombok @Getter / @Setter 生成的访问器，与 API DTO 分离。API 请求响应仍使用 `dto/Models.java` 中的类型；响应分别为 BookResponse、ReaderResponse、LoanResponse。`dto/ResponseMapper.java` 负责领域对象到响应的显式转换。
+`model/Book.java`、`model/Reader.java`、`model/Loan.java` 为独立的Java class，使用私有字段、校验构造方法和 Lombok @Getter / @Setter 生成的访问器，与 API DTO 分离。API 请求响应使用 `dto/Models.java` 中的类型，写操作的应用层入参使用 `command` 包中的类型；响应分别为 BookResponse、ReaderResponse、LoanResponse。`dto/ResponseMapper.java` 负责领域对象到响应的显式转换。
 
 ```mermaid
 flowchart LR
     A[API JSON] --> B[请求 DTO]
-    B --> C[Service 转换并创建领域对象]
+    B --> C[Controller 转换 Command，再由 Service 创建领域对象]
     C --> D[Book / Reader / Loan]
     D --> E[DAO 参数化 SQL]
     E --> F[(PostgreSQL)]
@@ -730,6 +738,27 @@ Book、Reader、Loan 使用 `@Getter`、`@Setter` 自动生成字段访问器，
 
 Controller 依赖 BookService、ReaderService、LoanService 接口，由 Spring 注入 service.impl 中的对应实现。实现类编排业务和事务，通过 dto.persistence 下的 BookDao、ReaderDao、LoanDao 访问数据库；领域类只包含数据和领域规则，不包含 SQL 或 JDBC 依赖。按本项目的目录约定，DAO 位于 dto.persistence，纯 API DTO 仍位于 dto.Models，两者职责分开。
 
-三个领域类使用 @Getter、@Setter，字段不再为 final。setter 只修改对象，不执行数据库操作；每个 DAO 写入前调用领域对象 validate()，拒绝空必填字段、非法库存及早于借阅时间的归还时间。BookServiceImpl、ReaderServiceImpl 继续将请求先转换为领域对象；LoanServiceImpl 在同一个事务中锁定图书，再更新借阅和库存。模型对象仅在单次业务操作内使用。
+三个领域类使用 @Getter、@Setter，字段不再为 final。setter 只修改对象，不执行数据库操作；每个 DAO 写入前调用领域对象 validate()，拒绝空必填字段、非法库存及早于借阅时间的归还时间。Controller 将请求 DTO 转换为 Command，BookServiceImpl、ReaderServiceImpl 再将 Command 转换为领域对象；LoanServiceImpl 在同一个事务中锁定图书，再更新借阅和库存。模型对象仅在单次业务操作内使用。
 
 DatabaseAccess 统一提供数据库时钟与锁等待设置，WriteTransactionExecutor 保留 READ COMMITTED、事务回滚和有限重试规则。DAO 不自行提交事务，三个 DAO 使用相同数据源，受同一个 Spring 事务管理器管理。API 路径、JSON 格式、数据库迁移及唯一约束保持不变。
+
+## Request → Command → 领域对象 → DAO
+
+Controller 接收并验证 HTTP Request，将有效入参构造为应用层 Command。BookService、ReaderService、LoanService 接口和实现不再依赖 API 请求/响应 DTO；写操作分别接收 CreateBookCommand、CreateReaderCommand、BorrowLoanCommand、ReturnLoanCommand。读操作保持 UUID、分页参数，返回领域对象或 PageResult，而非 API Page。当前借阅结果使用 CurrentBorrowing 查询模型。
+
+```mermaid
+flowchart TD
+    A[Controller：Request 校验] --> B[构造 Command]
+    B --> C[Service 接口]
+    C --> D[ServiceImpl：业务编排和事务]
+    D --> E[创建或修改 Book / Reader / Loan]
+    E --> F[DAO：验证并持久化领域对象]
+    F --> G[(PostgreSQL)]
+    G --> H[领域对象 / PageResult]
+    H --> I[Controller 调用 ResponseMapper]
+    I --> J[响应 DTO / JSON]
+```
+
+Command 为不可变 record，自身检查必填、长度、库存非负及操作标识，且不包含 Jackson、HTTP 或 Jakarta Validation 注解。这样非 HTTP 调用方也不能绕过基础校验。领域工厂和 DAO 仍分别负责领域规则与写入前校验。Controller 负责把 Service 返回的 Book、Reader、Loan、PageResult 映射到原 API 响应，JSON 格式和接口路径保持不变。
+
+测试新增 Command 非 HTTP 输入校验、Controller 请求到 Command 的字段转换，以及领域查询结果到 API 响应的映射验证。数据库锁顺序、事务边界、重试规则和 Flyway 迁移保持不变。

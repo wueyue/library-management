@@ -2,6 +2,8 @@ package com.example.library.controller;
 
 
 import jakarta.validation.Valid;
+import com.example.library.command.*;
+import com.example.library.dto.ResponseMapper;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
@@ -29,20 +31,21 @@ public class LoanController {
     @ResponseStatus(HttpStatus.CREATED)
     public LoanResponse borrow(@RequestHeader(name="X-Reader-Id",required=false) String reader,
                        @Valid @RequestBody BorrowRequest request) {
-        return service.borrow(readerService.authenticate(reader),request.bookId());
+        return ResponseMapper.loan(service.borrow(new BorrowLoanCommand(readerService.authenticate(reader),request.bookId())));
     }
     /** 归还自己的借阅。loanId 为借阅 UUID，无请求体。
      * 返回 200 和 LoanResponse；重复归还返回原结果；不存在或属于他人返回 404。 */
     @PostMapping("/loans/{loanId}/return")
     public LoanResponse returnBook(@RequestHeader(name="X-Reader-Id",required=false) String reader,
                            @PathVariable UUID loanId) {
-        return service.returnBook(readerService.authenticate(reader),loanId);
+        return ResponseMapper.loan(service.returnBook(new ReturnLoanCommand(readerService.authenticate(reader),loanId)));
     }
     /** 查询自己的未归还借阅，入参为身份头和分页参数，返回借阅及图书摘要。 */
     @GetMapping("/me/loans")
     public Page<CurrentLoan> current(@RequestHeader(name="X-Reader-Id",required=false) String reader,
                                     @RequestParam(defaultValue="1") @Min(1) int page,
                                     @RequestParam(name="page_size",defaultValue="20") @Min(1) @Max(100) int size) {
-        return service.current(readerService.authenticate(reader),page,size);
+        var result=service.current(readerService.authenticate(reader),page,size);
+        return new Page<>(result.items().stream().map(row -> ResponseMapper.current(row.loan(),row.title(),row.author())).toList(),result.page(),result.pageSize());
     }
 }

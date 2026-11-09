@@ -2,6 +2,8 @@ package com.example.library.controller;
 
 
 import jakarta.validation.Valid;
+import com.example.library.command.*;
+import com.example.library.dto.ResponseMapper;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
@@ -25,6 +27,6 @@ public class ReaderController {
      * 读者使用 Reader 领域模型，返回 id 可作为借阅接口的 X-Reader-Id。演示接口无需身份。 */
     @PostMapping("/readers/insert")
     @ResponseStatus(HttpStatus.CREATED)
-    public ReaderResponse createReader(@Valid @RequestBody CreateReaderRequest request) { return service.createReader(request); }
+    public ReaderResponse createReader(@Valid @RequestBody CreateReaderRequest request) { return ResponseMapper.reader(service.createReader(new CreateReaderCommand(request.name(),request.studentNumber()))); }
 
 }

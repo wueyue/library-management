@@ -15,7 +15,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.IntFunction;
 import static org.junit.jupiter.api.Assertions.*;
-import static com.example.library.dto.Models.*;
+import com.example.library.command.*;
+import com.example.library.model.*;
 
 /** 使用专用 PostgreSQL 测试库和独立事务；无数据库时明确跳过，不用 H2 模拟行锁。 */
 @SpringBootTest
@@ -60,72 +61,72 @@ class PostgresConcurrencyTest {
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM (SELECT reader_id FROM loans WHERE book_id=? AND return_time IS NULL GROUP BY reader_id HAVING count(*)>1) t",Integer.class,book));
     }
     @Test void lastCopyOnlyOneWinner() throws Exception {
-        var results=parallel(i->loans.borrow(readers.get(i),book));
-        assertEquals(1,results.stream().filter(LoanResponse.class::isInstance).count());
+        var results=parallel(i->loans.borrow(new BorrowLoanCommand(readers.get(i),book)));
+        assertEquals(1,results.stream().filter(Loan.class::isInstance).count());
         assertEquals(19,results.stream().filter("BOOK_OUT_OF_STOCK"::equals).count());stock(0);
     }
     @Test void sameReaderOnlyBorrowsOnce() throws Exception {
         jdbc.update("UPDATE books SET total_copies=20,available_copies=20 WHERE id=?",book);
-        var results=parallel(i->loans.borrow(readers.getFirst(),book));
-        assertEquals(1,results.stream().filter(LoanResponse.class::isInstance).count());
+        var results=parallel(i->loans.borrow(new BorrowLoanCommand(readers.getFirst(),book)));
+        assertEquals(1,results.stream().filter(Loan.class::isInstance).count());
         assertEquals(19,results.stream().filter("BOOK_ALREADY_BORROWED"::equals).count());stock(19);
     }
     @Test void parallelReturnOnlyReleasesOneCopy() throws Exception {
-        var loan=loans.borrow(readers.getFirst(),book);
-        var results=parallel(i->loans.returnBook(readers.getFirst(),loan.id()));
-        assertTrue(results.stream().allMatch(LoanResponse.class::isInstance));
-        assertEquals(1,results.stream().map(v->((LoanResponse)v).returnTime()).distinct().count());stock(1);
-        assertEquals("BORROWED",loans.borrow(readers.getFirst(),book).status());stock(0);
+        var loan=loans.borrow(new BorrowLoanCommand(readers.getFirst(),book));
+        var results=parallel(i->loans.returnBook(new ReturnLoanCommand(readers.getFirst(),loan.getId())));
+        assertTrue(results.stream().allMatch(Loan.class::isInstance));
+        assertEquals(1,results.stream().map(v->((Loan)v).getReturnTime()).distinct().count());stock(1);
+        assertEquals("BORROWED",loans.borrow(new BorrowLoanCommand(readers.getFirst(),book)).getStatus());stock(0);
     }
     @Test void insertFailureRollsBackStock() {
         // 真实 FK 错误发生于扣库存之后，整笔事务必须回滚。
-        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->loans.borrow(UUID.randomUUID(),book));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->loans.borrow(new BorrowLoanCommand(UUID.randomUUID(),book)));
         stock(1);
     }
     @Test void returnStockFailureRollsBackLoan() {
-        var loan=loans.borrow(readers.getFirst(),book);
+        var loan=loans.borrow(new BorrowLoanCommand(readers.getFirst(),book));
         // 注入跨表不一致，使库存增加失败。归还标记必须随事务回滚。
         jdbc.update("UPDATE books SET available_copies=total_copies WHERE id=?",book);
-        assertThrows(IllegalStateException.class,()->loans.returnBook(readers.getFirst(),loan.id()));
-        assertNull(jdbc.queryForObject("SELECT return_time FROM loans WHERE id=?",java.time.OffsetDateTime.class,loan.id()));
+        assertThrows(IllegalStateException.class,()->loans.returnBook(new ReturnLoanCommand(readers.getFirst(),loan.getId())));
+        assertNull(jdbc.queryForObject("SELECT return_time FROM loans WHERE id=?",java.time.OffsetDateTime.class,loan.getId()));
         jdbc.update("UPDATE books SET available_copies=0 WHERE id=?",book);stock(0);
     }
     @Test void otherReaderCannotReturnLoan() {
-        var loan=loans.borrow(readers.getFirst(),book);
-        var e=assertThrows(BusinessException.class,()->loans.returnBook(readers.get(1),loan.id()));
+        var loan=loans.borrow(new BorrowLoanCommand(readers.getFirst(),book));
+        var e=assertThrows(BusinessException.class,()->loans.returnBook(new ReturnLoanCommand(readers.get(1),loan.getId())));
         assertEquals("LOAN_NOT_FOUND",e.getCode());stock(0);
     }
     @Test void enteredReaderAndBookCanBorrowAndReturn() {
-        var reader=readerService.createReader(new CreateReaderRequest("  新学生  ","  "+UUID.randomUUID()+"  "));
-        readers.add(reader.id());
-        var created=books.createBook(new CreateBookRequest("  Java 入门  ","作者",null,2));
+        var reader=readerService.createReader(new CreateReaderCommand("  新学生  ","  "+UUID.randomUUID()+"  "));
+        readers.add(reader.getId());
+        var created=books.createBook(new CreateBookCommand("  Java 入门  ","作者",null,2));
         try {
-            assertEquals("新学生",reader.name());
-            assertEquals(reader.createTime(),reader.updateTime());
-            assertEquals("Java 入门",created.title());
-            assertEquals(2,created.availableCopies());
-            assertEquals(created.createTime(),created.updateTime());
-            assertEquals(reader.id(),readerService.authenticate(reader.id().toString()));
-            var loan=loans.borrow(reader.id(),created.id());
-            assertEquals(1,books.book(created.id()).availableCopies());
-            assertEquals(1,loans.current(reader.id(),1,20).items().size());
-            assertEquals("RETURNED",loans.returnBook(reader.id(),loan.id()).status());
-            assertEquals(2,books.book(created.id()).availableCopies());
-            assertTrue(loans.current(reader.id(),1,20).items().isEmpty());
+            assertEquals("新学生",reader.getName());
+            assertEquals(reader.getCreateTime(),reader.getUpdateTime());
+            assertEquals("Java 入门",created.getTitle());
+            assertEquals(2,created.getAvailableCopies());
+            assertEquals(created.getCreateTime(),created.getUpdateTime());
+            assertEquals(reader.getId(),readerService.authenticate(reader.getId().toString()));
+            var loan=loans.borrow(new BorrowLoanCommand(reader.getId(),created.getId()));
+            assertEquals(1,books.book(created.getId()).getAvailableCopies());
+            assertEquals(1,loans.current(reader.getId(),1,20).items().size());
+            assertEquals("RETURNED",loans.returnBook(new ReturnLoanCommand(reader.getId(),loan.getId())).getStatus());
+            assertEquals(2,books.book(created.getId()).getAvailableCopies());
+            assertTrue(loans.current(reader.getId(),1,20).items().isEmpty());
         } finally {
-            jdbc.update("DELETE FROM loans WHERE book_id=?",created.id());
-            jdbc.update("DELETE FROM books WHERE id=?",created.id());
+            jdbc.update("DELETE FROM loans WHERE book_id=?",created.getId());
+            jdbc.update("DELETE FROM books WHERE id=?",created.getId());
         }
     }
     @Test void studentNumberIsUniqueButNamesMayRepeat() {
         String number=UUID.randomUUID().toString();
-        var first=readerService.createReader(new CreateReaderRequest("同名学生",number));
-        readers.add(first.id());
-        assertEquals(number,first.studentNumber());
+        var first=readerService.createReader(new CreateReaderCommand("同名学生",number));
+        readers.add(first.getId());
+        assertEquals(number,first.getStudentNumber());
         assertThrows(org.springframework.dao.DuplicateKeyException.class,
-            ()->readerService.createReader(new CreateReaderRequest("另一学生","  "+number+"  ")));
-        var second=readerService.createReader(new CreateReaderRequest("同名学生",UUID.randomUUID().toString()));
-        readers.add(second.id());
-        assertNotEquals(first.id(),second.id());
+            ()->readerService.createReader(new CreateReaderCommand("另一学生","  "+number+"  ")));
+        var second=readerService.createReader(new CreateReaderCommand("同名学生",UUID.randomUUID().toString()));
+        readers.add(second.getId());
+        assertNotEquals(first.getId(),second.getId());
     }
 }

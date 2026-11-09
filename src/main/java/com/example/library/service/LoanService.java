@@ -1,11 +1,12 @@
 package com.example.library.service;
 
+import com.example.library.command.*;
+import com.example.library.model.*;
 import java.util.UUID;
-import static com.example.library.dto.Models.*;
 
-/** Loan 业务接口，实现位于 service.impl。 */
+/** Loan 业务接口；不依赖 API 请求或响应 DTO。 */
 public interface LoanService {
-    Page<CurrentLoan> current(UUID reader,int page,int size);
-    LoanResponse borrow(UUID reader,UUID book);
-    LoanResponse returnBook(UUID reader,UUID loanId);
+    PageResult<CurrentBorrowing> current(UUID reader,int page,int size);
+    Loan borrow(BorrowLoanCommand command);
+    Loan returnBook(ReturnLoanCommand command);
 }

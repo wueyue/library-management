@@ -14,7 +14,8 @@ import java.util.UUID;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static com.example.library.dto.Models.*;
+import com.example.library.command.*;
+import com.example.library.model.*;
 
 @WebMvcTest({BookController.class, ReaderController.class, LoanController.class})
 class ApiControllerTest {
@@ -25,7 +26,7 @@ class ApiControllerTest {
     @Test void borrowUsesSnakeCaseAndCreatedResponse() throws Exception {
         var reader=UUID.randomUUID(); var book=UUID.randomUUID(); var now=OffsetDateTime.now();
         when(readerService.authenticate(reader.toString())).thenReturn(reader);
-        when(loanService.borrow(reader,book)).thenReturn(new LoanResponse(UUID.randomUUID(),book,reader,"BORROWED",now,null,now));
+        when(loanService.borrow(new BorrowLoanCommand(reader,book))).thenReturn(new Loan(UUID.randomUUID(),book,reader,now,null,now));
         mvc.perform(post("/api/v1/loans").header("X-Reader-Id",reader).contentType("application/json").content("{\"book_id\":\""+book+"\"}"))
            .andExpect(status().isCreated()).andExpect(jsonPath("$.book_id").value(book.toString()))
            .andExpect(jsonPath("$.borrow_time").exists()).andExpect(jsonPath("$.update_time").exists())
@@ -48,17 +49,52 @@ class ApiControllerTest {
     }
     @Test void createBookAndReaderReturnGeneratedFields() throws Exception {
         var now=OffsetDateTime.now(); var id=UUID.randomUUID();
-        when(bookService.createBook(any())).thenReturn(new BookResponse(id,"Java","作者",null,3,3,now,now));
+        when(bookService.createBook(any())).thenReturn(new Book(id,"Java","作者",null,3,3,now,now));
         mvc.perform(post("/api/v1/books/insert").contentType("application/json")
                 .content("{\"title\":\"Java\",\"author\":\"作者\",\"total_copies\":3}"))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(id.toString()))
             .andExpect(jsonPath("$.available_copies").value(3)).andExpect(jsonPath("$.create_time").exists())
             .andExpect(jsonPath("$.update_time").exists());
-        when(readerService.createReader(any())).thenReturn(new ReaderResponse(id,"张三","20260001",now,now));
+        when(readerService.createReader(any())).thenReturn(new Reader(id,"张三","20260001",now,now));
         mvc.perform(post("/api/v1/readers/insert").contentType("application/json").content("{\"name\":\"张三\",\"student_number\":\"20260001\"}"))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.name").value("张三"))
             .andExpect(jsonPath("$.id").value(id.toString())).andExpect(jsonPath("$.student_number").value("20260001"))
             .andExpect(jsonPath("$.update_time").exists());
+    }
+    @Test void controllerConvertsEntryRequestsToCommands() throws Exception {
+        var now=OffsetDateTime.now();
+        when(bookService.createBook(any())).thenReturn(Book.create("Java","作者",null,3,now));
+        when(readerService.createReader(any())).thenReturn(Reader.create("张三","00123",now));
+        mvc.perform(post("/api/v1/books/insert").contentType("application/json")
+                .content("{\"title\":\"Java\",\"author\":\"作者\",\"total_copies\":3}"))
+            .andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/readers/insert").contentType("application/json")
+                .content("{\"name\":\"张三\",\"student_number\":\"00123\"}"))
+            .andExpect(status().isCreated());
+        verify(bookService).createBook(new CreateBookCommand("Java","作者",null,3));
+        verify(readerService).createReader(new CreateReaderCommand("张三","00123"));
+    }
+    @Test void bookQueriesMapDomainResultsToResponses() throws Exception {
+        var id=UUID.randomUUID();var now=OffsetDateTime.now();
+        var book=new Book(id,"Java","作者",null,3,2,now,now);
+        when(bookService.books(1,20)).thenReturn(new PageResult<>(java.util.List.of(book),1,20));
+        when(bookService.book(id)).thenReturn(book);
+        mvc.perform(get("/api/v1/books")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].available_copies").value(2)).andExpect(jsonPath("$.page_size").value(20));
+        mvc.perform(get("/api/v1/books/"+id)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(id.toString()));
+    }
+    @Test void loanQueriesAndReturnMapDomainResultsToResponses() throws Exception {
+        var reader=UUID.randomUUID();var book=UUID.randomUUID();var id=UUID.randomUUID();var now=OffsetDateTime.now();
+        var loan=new Loan(id,book,reader,now,null,now);
+        when(readerService.authenticate(reader.toString())).thenReturn(reader);
+        when(loanService.current(reader,1,20)).thenReturn(new PageResult<>(java.util.List.of(new CurrentBorrowing(loan,"Java","作者")),1,20));
+        when(loanService.returnBook(new ReturnLoanCommand(reader,id))).thenReturn(loan.returnBook(now.plusHours(1)));
+        mvc.perform(get("/api/v1/me/loans").header("X-Reader-Id",reader))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].book.title").value("Java"));
+        mvc.perform(post("/api/v1/loans/"+id+"/return").header("X-Reader-Id",reader))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("RETURNED"));
+        verify(loanService).returnBook(new ReturnLoanCommand(reader,id));
     }
     @Test void entryValidationRejectsInvalidAndServerOwnedFields() throws Exception {
         for(String body: new String[]{"{}","{\"title\":\" \",\"author\":\"a\",\"total_copies\":1}",

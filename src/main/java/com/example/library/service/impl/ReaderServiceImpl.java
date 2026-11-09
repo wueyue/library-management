@@ -7,9 +7,10 @@ import com.example.library.dto.persistence.ReaderDao;
 import com.example.library.exception.BusinessException;
 import org.springframework.stereotype.Service;
 import com.example.library.model.Reader;
-import com.example.library.dto.ResponseMapper;
+import com.example.library.command.*;
+import com.example.library.model.PageResult;
+import com.example.library.model.CurrentBorrowing;
 import java.util.UUID;
-import static com.example.library.dto.Models.*;
 
 /** 读者录入与演示身份解析。 */
 @Service
@@ -21,9 +22,9 @@ public class ReaderServiceImpl implements ReaderService {
         this.transactions=transactions;
     }
     @Override
-    public ReaderResponse createReader(CreateReaderRequest request) { return transactions.execute(() -> {
-        var reader=Reader.create(request.name(),request.studentNumber(),transactions.now());
-        return ResponseMapper.reader(readerDao.createReader(reader));
+    public Reader createReader(CreateReaderCommand command) { return transactions.execute(() -> {
+        var reader=Reader.create(command.name(),command.studentNumber(),transactions.now());
+        return readerDao.createReader(reader);
     }); }
     @Override
     public UUID authenticate(String value) {

@@ -2,6 +2,8 @@ package com.example.library.controller;
 
 
 import jakarta.validation.Valid;
+import com.example.library.command.*;
+import com.example.library.dto.ResponseMapper;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
@@ -25,17 +27,18 @@ public class BookController {
      * 演示接口无需身份；生产环境需接入管理员授权。重复录入会创建不同的图书 ID。 */
     @PostMapping("/books/insert")
     @ResponseStatus(HttpStatus.CREATED)
-    public BookResponse createBook(@Valid @RequestBody CreateBookRequest request) { return service.createBook(request); }
+    public BookResponse createBook(@Valid @RequestBody CreateBookRequest request) { return ResponseMapper.book(service.createBook(new CreateBookCommand(request.title(),request.author(),request.description(),request.totalCopies()))); }
 
     /** 分页浏览图书，无需身份。page 从 1 开始，page_size 范围 1–100，默认 20。
      * 返回图书列表及分页参数；库存仅为读取时快照。 */
     @GetMapping("/books")
     public Page<BookResponse> books(@RequestParam(defaultValue="1") @Min(1) int page,
                            @RequestParam(name="page_size",defaultValue="20") @Min(1) @Max(100) int size) {
-        return service.books(page,size);
+        var result=service.books(page,size);
+        return new Page<>(result.items().stream().map(ResponseMapper::book).toList(),result.page(),result.pageSize());
     }
     /** 查询图书详情。bookId 为图书 UUID；返回元数据、库存和时间；不存在返回 404。 */
     @GetMapping("/books/{bookId}")
-    public BookResponse book(@PathVariable UUID bookId) { return service.book(bookId); }
+    public BookResponse book(@PathVariable UUID bookId) { return ResponseMapper.book(service.book(bookId)); }
 
 }

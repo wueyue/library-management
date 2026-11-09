@@ -6,9 +6,10 @@ import com.example.library.service.WriteTransactionExecutor;
 import com.example.library.dto.persistence.BookDao;
 import org.springframework.stereotype.Service;
 import com.example.library.model.Book;
-import com.example.library.dto.ResponseMapper;
+import com.example.library.command.*;
+import com.example.library.model.PageResult;
+import com.example.library.model.CurrentBorrowing;
 import java.util.UUID;
-import static com.example.library.dto.Models.*;
 
 /** 图书录入和查询业务。 */
 @Service
@@ -20,12 +21,12 @@ public class BookServiceImpl implements BookService {
         this.transactions=transactions;
     }
     @Override
-    public BookResponse createBook(CreateBookRequest request) { return transactions.execute(() -> {
-        var book=Book.create(request.title(),request.author(),request.description(),request.totalCopies(),transactions.now());
-        return ResponseMapper.book(bookDao.createBook(book));
+    public Book createBook(CreateBookCommand command) { return transactions.execute(() -> {
+        var book=Book.create(command.title(),command.author(),command.description(),command.totalCopies(),transactions.now());
+        return bookDao.createBook(book);
     }); }
     @Override
-    public Page<BookResponse> books(int page,int size) { return new Page<>(bookDao.books(page,size).stream().map(ResponseMapper::book).toList(),page,size); }
+    public PageResult<Book> books(int page,int size) { return new PageResult<>(bookDao.books(page,size),page,size); }
     @Override
-    public BookResponse book(UUID id) { return ResponseMapper.book(bookDao.book(id,false)); }
+    public Book book(UUID id) { return bookDao.book(id,false); }
 }
