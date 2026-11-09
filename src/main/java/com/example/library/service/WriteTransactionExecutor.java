@@ -1,6 +1,6 @@
 package com.example.library.service;
 
-import com.example.library.repository.LibraryRepository;
+import com.example.library.dto.persistence.DatabaseAccess;
 import com.example.library.exception.BusinessException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -14,16 +14,17 @@ import java.util.function.Supplier;
 /** 统一写事务、锁等待上限与明确回滚后的有限重试，供各业务 Service 复用。 */
 @Component
 public class WriteTransactionExecutor {
-    private final LibraryRepository repo;
+    private final DatabaseAccess database;
     private final TransactionTemplate tx;
-    public WriteTransactionExecutor(LibraryRepository repo, PlatformTransactionManager manager) {
-        this.repo=repo;
+    public WriteTransactionExecutor(DatabaseAccess database, PlatformTransactionManager manager) {
+        this.database=database;
         this.tx=new TransactionTemplate(manager);
         tx.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
+    public java.time.OffsetDateTime now() { return database.now(); }
     public <T> T execute(Supplier<T> action) {
         for(int attempt=0;attempt<3;attempt++) {
-            try { return tx.execute(status -> { repo.lockTimeout(); return action.get(); }); }
+            try { return tx.execute(status -> { database.lockTimeout(); return action.get(); }); }
             catch(DataAccessException e) {
                 String state=sqlState(e);
                 // 只对已确定回滚的死锁/序列化失败重试整个事务。
