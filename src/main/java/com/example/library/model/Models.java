@@ -11,8 +11,9 @@ public final class Models {
     public record CreateBookRequest(@NotBlank @Size(max=255) String title,
                                     @NotBlank @Size(max=255) String author,
                                     String description, @NotNull @Min(0) Integer totalCopies) {}
-    public record CreateStudentRequest(@NotBlank @Size(max=100) String name) {}
-    public record Student(UUID id, String name, OffsetDateTime createTime, OffsetDateTime updateTime) {}
+    public record CreateStudentRequest(@NotBlank @Size(max=100) String name,
+                                       @NotBlank @Size(max=64) String studentNumber) {}
+    public record Student(UUID id, String name, String studentNumber, OffsetDateTime createTime, OffsetDateTime updateTime) {}
     public record BorrowRequest(@NotNull UUID bookId) {}
     public record Book(UUID id, String title, String author, String description,
                        int totalCopies, int availableCopies, OffsetDateTime createTime,

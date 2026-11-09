@@ -32,6 +32,10 @@ public class ApiExceptionHandler {
                 && sql.getServerErrorMessage()!=null
                 && "uq_active_loan".equals(sql.getServerErrorMessage().getConstraint()))
                 return response(409,"BOOK_ALREADY_BORROWED","你已借阅这本书，请先归还",r);
+            if(c instanceof org.postgresql.util.PSQLException sql && "23505".equals(sql.getSQLState())
+                && sql.getServerErrorMessage()!=null
+                && "uq_reader_student_number".equals(sql.getServerErrorMessage().getConstraint()))
+                return response(409,"STUDENT_NUMBER_ALREADY_EXISTS","学号已存在",r);
         }
         if(e instanceof org.springframework.jdbc.CannotGetJdbcConnectionException)
             return response(503,"SERVICE_BUSY","数据库暂不可用",r);

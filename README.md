@@ -55,7 +55,7 @@ mvn test
 
 ## 本次验证结果
 
-Java 21 下编译、JAR 打包成功，13 项单元及 HTTP 接口测试通过。7 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL 受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
+Java 21 下编译、JAR 打包成功，15 项单元及 HTTP 接口测试通过。8 项真实 PostgreSQL 集成测试因未配置 TEST_DB_URL 跳过，尚未验证真实数据库并发结果。当前环境 Docker 未运行，临时 PostgreSQL 受沙箱共享内存限制无法启动；配置独立数据库后按上方命令运行全部测试。
 
 ## 代码结构与实现说明
 
@@ -144,10 +144,13 @@ HTTP 层负责协议转换和错误映射；服务层负责借阅与归还流程
 
 ### 4.2 Reader
 
+学生以 student_number（学号）作为业务唯一标识；id 作为内部主键和借阅外键。
+
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | id | UUID | 是 | 读者标识 |
 | name | varchar(100) | 是 | 展示名称 |
+| student_number | varchar(64) | 是 | 学号，唯一，保留前导零 |
 | create_time | timestamptz | 是 | 创建时间 |
 | update_time | timestamptz | 是 | 最近更新时间 |
 
@@ -171,6 +174,7 @@ erDiagram
     READERS {
         uuid id PK
         varchar name
+        varchar student_number UK
         timestamptz create_time
         timestamptz update_time
     }
@@ -202,6 +206,9 @@ UUID 由应用生成。业务数据不提供删除接口，外键默认阻止删
 CREATE TABLE readers (
     id UUID PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
+    student_number VARCHAR(64) NOT NULL,
+    CONSTRAINT uq_reader_student_number UNIQUE (student_number),
+    CONSTRAINT ck_reader_student_number CHECK (student_number = btrim(student_number) AND length(btrim(student_number)) > 0),
     create_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -412,6 +419,7 @@ items 的字段为 Loan 加 book（id、title、author），通过关联查询�
 | 401 | UNAUTHENTICATED | 身份头缺失、无效或读者不存在 |
 | 404 | BOOK_NOT_FOUND | 图书不存在 |
 | 404 | LOAN_NOT_FOUND | 借阅不存在或属于其他读者 |
+| 409 | STUDENT_NUMBER_ALREADY_EXISTS | 学号已录入 |
 | 409 | BOOK_ALREADY_BORROWED | 已存在有效借阅 |
 | 409 | BOOK_OUT_OF_STOCK | 可借库存不足 |
 | 503 | SERVICE_BUSY | 锁等待超时或可重试事务冲突重试耗尽 |
@@ -597,7 +605,7 @@ sequenceDiagram
 
 ## 新增：图书与学生录入接口
 
-学生沿用 Reader 实体与 readers 表，暂只录入姓名，允许同名。两接口用于演示，无需身份头；生产环境的图书和学生管理需要管理员授权。每次 POST 创建独立 UUID，不按书名或姓名去重，不提供请求键幂等。
+学生沿用 Reader 实体与 readers 表，姓名和学号均必填，以学号唯一识别学生，允许同名。两接口用于演示，无需身份头；生产环境的图书和学生管理需要管理员授权。图书每次 POST 创建独立 UUID，不按书名去重；学生按学号去重，不提供请求键幂等。
 
 ### POST /api/v1/books/insert
 
@@ -618,25 +626,26 @@ sequenceDiagram
 
 ### POST /api/v1/students/insert
 
-录入学生，入参 name 为必填非空白字符串，最多 100 字，保存时去除首尾空白。成功返回 201：
+录入学生，name 为必填非空白字符串，最多 100 字；student_number 为必填非空白字符串，最多 64 字。两者保存时去除首尾空白；学号大小写敏感，以字符串保存并保留前导零。数据库唯一约束防止重复学号，重复时返回 409 STUDENT_NUMBER_ALREADY_EXISTS。成功返回 201：
 
 ```json
 {
   "id":"22222222-2222-4222-8222-222222222222",
   "name":"张三",
+  "student_number":"20260001",
   "create_time":"2026-11-09T03:00:00Z",
   "update_time":"2026-11-09T03:00:00Z"
 }
 ```
 
-请求示例：`{"name":"张三"}`。返回 id 可作为后续借阅请求的 X-Reader-Id。所有必填、长度、库存及未知字段验证失败统一返回 400 INVALID_ARGUMENT。
+请求示例：`{"name":"张三","student_number":"20260001"}`。返回 id 可作为后续借阅请求的 X-Reader-Id。所有必填、长度、库存及未知字段验证失败统一返回 400 INVALID_ARGUMENT。
 
 ### 手动测试闭环
 
 ```bash
 # 1. 创建学生，复制响应 id 作为后续 X-Reader-Id
 curl -X POST http://localhost:8080/api/v1/students/insert \
-  -H 'Content-Type: application/json' -d '{"name":"张三"}'
+  -H 'Content-Type: application/json' -d '{"name":"张三","student_number":"20260001"}'
 
 # 2. 创建图书，复制响应 id 作为借阅的 book_id
 curl -X POST http://localhost:8080/api/v1/books/insert \
@@ -654,3 +663,13 @@ curl -X POST http://localhost:8080/api/v1/loans/<loan_id>/return \
 ```
 
 自动化测试覆盖录入成功、必填/空白/负库存/超长姓名/禁止客户端设置库存和 ID；真实数据库测试另验证录入→借阅→当前借阅→归还的闭环与初始库存、时间字段。
+
+## 学号升级与兼容设计
+
+新增 student_number：姓名可以重复，学号必须唯一。录入接口的 student_number 为必填字段，返回对象同样包含该字段。现有 X-Reader-Id 继续使用学生内部 UUID；学号用于业务识别和录入去重，不作为认证凭证。借阅记录的 reader_id 外键保持有效。
+
+迁移采用 `V2__add_student_number.sql`，不修改已执行的 V1 校验和。新库依次执行 V1、V2；旧库先添加字段，再给旧学生分配 `LEGACY-<原 UUID>` 唯一临时编号，更新 update_time，最后施加非空和唯一约束。临时编号不是真实学号，上线前应按实际学生名册核对并补录；修改学号时须同时更新 update_time。本文建表 SQL 展示最终结构，实际升级以 Flyway 迁移为准。
+
+录入相同学号的并发请求由唯一约束保证最多一条成功；冲突请求回滚并返回 409。学号去除首尾空白后比较，大小写敏感，前导零保留。例如 `00123` 和 `123` 是不同学号。同名且不同学号可分别创建学生。
+
+种子数据使用学号 20260001；已有旧种子 UUID 不会被 seed.sql 自动覆盖，需按上述迁移说明补录。

@@ -31,7 +31,7 @@ class PostgresConcurrencyTest {
     @BeforeEach void setup() {
         book=UUID.randomUUID(); readers=new ArrayList<>();
         jdbc.update("INSERT INTO books(id,title,author,total_copies,available_copies) VALUES(?,'test','author',1,1)",book);
-        for(int i=0;i<20;i++) { var id=UUID.randomUUID();readers.add(id);jdbc.update("INSERT INTO readers(id,name) VALUES(?,'test')",id); }
+        for(int i=0;i<20;i++) { var id=UUID.randomUUID();readers.add(id);jdbc.update("INSERT INTO readers(id,name,student_number) VALUES(?,'test',?)",id,id.toString()); }
     }
     @AfterEach void cleanup() {
         jdbc.update("DELETE FROM loans WHERE book_id=?",book); jdbc.update("DELETE FROM books WHERE id=?",book);
@@ -92,7 +92,7 @@ class PostgresConcurrencyTest {
         assertEquals("LOAN_NOT_FOUND",e.getCode());stock(0);
     }
     @Test void enteredStudentAndBookCanBorrowAndReturn() {
-        var student=service.createStudent(new CreateStudentRequest("  新学生  "));
+        var student=service.createStudent(new CreateStudentRequest("  新学生  ","  "+UUID.randomUUID()+"  "));
         readers.add(student.id());
         var created=service.createBook(new CreateBookRequest("  Java 入门  ","作者",null,2));
         try {
@@ -112,5 +112,16 @@ class PostgresConcurrencyTest {
             jdbc.update("DELETE FROM loans WHERE book_id=?",created.id());
             jdbc.update("DELETE FROM books WHERE id=?",created.id());
         }
+    }
+    @Test void studentNumberIsUniqueButNamesMayRepeat() {
+        String number=UUID.randomUUID().toString();
+        var first=service.createStudent(new CreateStudentRequest("同名学生",number));
+        readers.add(first.id());
+        assertEquals(number,first.studentNumber());
+        assertThrows(org.springframework.dao.DuplicateKeyException.class,
+            ()->service.createStudent(new CreateStudentRequest("另一学生","  "+number+"  ")));
+        var second=service.createStudent(new CreateStudentRequest("同名学生",UUID.randomUUID().toString()));
+        readers.add(second.id());
+        assertNotEquals(first.id(),second.id());
     }
 }

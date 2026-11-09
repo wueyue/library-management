@@ -25,7 +25,8 @@ public class LibraryController {
     @ResponseStatus(HttpStatus.CREATED)
     public Book createBook(@Valid @RequestBody CreateBookRequest request) { return service.createBook(request); }
 
-    /** 录入学生。入参 name 必填且最多 100 字，允许同名；返回 201 以及 id、name、create_time、update_time。
+    /** 录入学生。入参 name 必填且最多 100 字，student_number 必填且最多 64 字，学号唯一，允许同名。
+     * 返回 201 以及 id、name、student_number、create_time、update_time；学号重复返回 409 STUDENT_NUMBER_ALREADY_EXISTS。
      * 学生沿用 Reader 模型，返回 id 可作为借阅接口的 X-Reader-Id。演示接口无需身份。 */
     @PostMapping("/students/insert")
     @ResponseStatus(HttpStatus.CREATED)

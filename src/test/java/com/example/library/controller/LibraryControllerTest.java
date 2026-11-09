@@ -50,10 +50,11 @@ class LibraryControllerTest {
             .andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(id.toString()))
             .andExpect(jsonPath("$.available_copies").value(3)).andExpect(jsonPath("$.create_time").exists())
             .andExpect(jsonPath("$.update_time").exists());
-        when(service.createStudent(any())).thenReturn(new Student(id,"张三",now,now));
-        mvc.perform(post("/api/v1/students/insert").contentType("application/json").content("{\"name\":\"张三\"}"))
+        when(service.createStudent(any())).thenReturn(new Student(id,"张三","20260001",now,now));
+        mvc.perform(post("/api/v1/students/insert").contentType("application/json").content("{\"name\":\"张三\",\"student_number\":\"20260001\"}"))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.name").value("张三"))
-            .andExpect(jsonPath("$.id").value(id.toString())).andExpect(jsonPath("$.update_time").exists());
+            .andExpect(jsonPath("$.id").value(id.toString())).andExpect(jsonPath("$.student_number").value("20260001"))
+            .andExpect(jsonPath("$.update_time").exists());
     }
     @Test void entryValidationRejectsInvalidAndServerOwnedFields() throws Exception {
         for(String body: new String[]{"{}","{\"title\":\" \",\"author\":\"a\",\"total_copies\":1}",
@@ -67,5 +68,24 @@ class LibraryControllerTest {
                 .andExpect(status().isBadRequest());
         }
         verify(service,never()).createBook(any()); verify(service,never()).createStudent(any());
+    }
+    @Test void studentNumberValidation() throws Exception {
+        var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+        for(String number: new String[]{"", "   ", "x".repeat(65)}) {
+            var body=mapper.writeValueAsString(java.util.Map.of("name","张三","student_number",number));
+            mvc.perform(post("/api/v1/students/insert").contentType("application/json").content(body))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_ARGUMENT"));
+        }
+        mvc.perform(post("/api/v1/students/insert").contentType("application/json").content("{\"name\":\"张三\"}"))
+            .andExpect(status().isBadRequest());
+        verify(service,never()).createStudent(any());
+    }
+    @Test void duplicateStudentNumberReturns409() throws Exception {
+        var serverError=new org.postgresql.util.ServerErrorMessage("SERROR\0C23505\0Mduplicate\0nuq_reader_student_number\0");
+        var sql=new org.postgresql.util.PSQLException(serverError);
+        when(service.createStudent(any())).thenThrow(new org.springframework.dao.DuplicateKeyException("duplicate",sql));
+        mvc.perform(post("/api/v1/students/insert").contentType("application/json")
+                .content("{\"name\":\"张三\",\"student_number\":\"20260001\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("STUDENT_NUMBER_ALREADY_EXISTS"));
     }
 }

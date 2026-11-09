@@ -28,10 +28,10 @@ public class LibraryRepository {
         return jdbc.queryForObject("INSERT INTO books(id,title,author,description,total_copies,available_copies) VALUES(?,?,?,?,?,?) RETURNING *",
             BOOK, UUID.randomUUID(),request.title().strip(),request.author().strip(),request.description(),request.totalCopies(),request.totalCopies());
     }
-    /** 学生沿用 readers 表，不按姓名去重，允许同名学生。 */
+    /** 学生沿用 readers 表，学号唯一，允许同名学生。 */
     public Student createStudent(CreateStudentRequest request) {
-        return jdbc.queryForObject("INSERT INTO readers(id,name) VALUES(?,?) RETURNING *",
-            (r,n)->new Student(uuid(r,"id"),r.getString("name"),time(r,"create_time"),time(r,"update_time")),UUID.randomUUID(),request.name().strip());
+        return jdbc.queryForObject("INSERT INTO readers(id,name,student_number) VALUES(?,?,?) RETURNING *",
+            (r,n)->new Student(uuid(r,"id"),r.getString("name"),r.getString("student_number"),time(r,"create_time"),time(r,"update_time")),UUID.randomUUID(),request.name().strip(),request.studentNumber().strip());
     }
     public boolean readerExists(UUID id) { return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM readers WHERE id=?)",Boolean.class,id)); }
     public List<Book> books(int page, int size) { return jdbc.query("SELECT * FROM books ORDER BY create_time DESC,id DESC LIMIT ? OFFSET ?", BOOK,size,(long)(page-1)*size); }
