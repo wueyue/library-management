@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/library}
+    username: ${DB_USER:library}
+    password: ${DB_PASSWORD:library}
+    hikari:
+      maximum-pool-size: 25
+      connection-timeout: 5000
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    deserialization:
+      fail-on-unknown-properties: true
+server:
+  error:
+    include-message: never
