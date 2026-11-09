@@ -1,6 +1,8 @@
 package com.example.library.controller;
 
-import com.example.library.service.LibraryService;
+import com.example.library.service.BookService;
+import com.example.library.service.StudentService;
+import com.example.library.service.LoanService;
 import com.example.library.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,14 +16,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static com.example.library.model.Models.*;
 
-@WebMvcTest(LibraryController.class)
-class LibraryControllerTest {
+@WebMvcTest({BookController.class, StudentController.class, LoanController.class})
+class ApiControllerTest {
     @Autowired MockMvc mvc;
-    @MockitoBean LibraryService service;
+    @MockitoBean BookService bookService;
+    @MockitoBean StudentService studentService;
+    @MockitoBean LoanService loanService;
     @Test void borrowUsesSnakeCaseAndCreatedResponse() throws Exception {
         var reader=UUID.randomUUID(); var book=UUID.randomUUID(); var now=OffsetDateTime.now();
-        when(service.authenticate(reader.toString())).thenReturn(reader);
-        when(service.borrow(reader,book)).thenReturn(new Loan(UUID.randomUUID(),book,reader,"BORROWED",now,null,now));
+        when(studentService.authenticate(reader.toString())).thenReturn(reader);
+        when(loanService.borrow(reader,book)).thenReturn(new Loan(UUID.randomUUID(),book,reader,"BORROWED",now,null,now));
         mvc.perform(post("/api/v1/loans").header("X-Reader-Id",reader).contentType("application/json").content("{\"book_id\":\""+book+"\"}"))
            .andExpect(status().isCreated()).andExpect(jsonPath("$.book_id").value(book.toString()))
            .andExpect(jsonPath("$.borrow_time").exists()).andExpect(jsonPath("$.update_time").exists())
@@ -37,20 +41,20 @@ class LibraryControllerTest {
            .andExpect(status().isBadRequest());
     }
     @Test void businessErrorKeepsRequestId() throws Exception {
-        when(service.authenticate(null)).thenThrow(new BusinessException(401,"UNAUTHENTICATED","读者身份无效"));
+        when(studentService.authenticate(null)).thenThrow(new BusinessException(401,"UNAUTHENTICATED","读者身份无效"));
         mvc.perform(get("/api/v1/me/loans"))
            .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.request_id").exists())
            .andExpect(jsonPath("$.error.code").value("UNAUTHENTICATED"));
     }
     @Test void createBookAndStudentReturnGeneratedFields() throws Exception {
         var now=OffsetDateTime.now(); var id=UUID.randomUUID();
-        when(service.createBook(any())).thenReturn(new Book(id,"Java","作者",null,3,3,now,now));
+        when(bookService.createBook(any())).thenReturn(new Book(id,"Java","作者",null,3,3,now,now));
         mvc.perform(post("/api/v1/books/insert").contentType("application/json")
                 .content("{\"title\":\"Java\",\"author\":\"作者\",\"total_copies\":3}"))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(id.toString()))
             .andExpect(jsonPath("$.available_copies").value(3)).andExpect(jsonPath("$.create_time").exists())
             .andExpect(jsonPath("$.update_time").exists());
-        when(service.createStudent(any())).thenReturn(new Student(id,"张三","20260001",now,now));
+        when(studentService.createStudent(any())).thenReturn(new Student(id,"张三","20260001",now,now));
         mvc.perform(post("/api/v1/students/insert").contentType("application/json").content("{\"name\":\"张三\",\"student_number\":\"20260001\"}"))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.name").value("张三"))
             .andExpect(jsonPath("$.id").value(id.toString())).andExpect(jsonPath("$.student_number").value("20260001"))
@@ -67,7 +71,7 @@ class LibraryControllerTest {
             mvc.perform(post("/api/v1/students/insert").contentType("application/json").content(body))
                 .andExpect(status().isBadRequest());
         }
-        verify(service,never()).createBook(any()); verify(service,never()).createStudent(any());
+        verify(bookService,never()).createBook(any()); verify(studentService,never()).createStudent(any());
     }
     @Test void studentNumberValidation() throws Exception {
         var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
@@ -78,12 +82,12 @@ class LibraryControllerTest {
         }
         mvc.perform(post("/api/v1/students/insert").contentType("application/json").content("{\"name\":\"张三\"}"))
             .andExpect(status().isBadRequest());
-        verify(service,never()).createStudent(any());
+        verify(studentService,never()).createStudent(any());
     }
     @Test void duplicateStudentNumberReturns409() throws Exception {
         var serverError=new org.postgresql.util.ServerErrorMessage("SERROR\0C23505\0Mduplicate\0nuq_reader_student_number\0");
         var sql=new org.postgresql.util.PSQLException(serverError);
-        when(service.createStudent(any())).thenThrow(new org.springframework.dao.DuplicateKeyException("duplicate",sql));
+        when(studentService.createStudent(any())).thenThrow(new org.springframework.dao.DuplicateKeyException("duplicate",sql));
         mvc.perform(post("/api/v1/students/insert").contentType("application/json")
                 .content("{\"name\":\"张三\",\"student_number\":\"20260001\"}"))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("STUDENT_NUMBER_ALREADY_EXISTS"));

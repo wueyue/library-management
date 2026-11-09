@@ -62,9 +62,16 @@ Java 21 下编译、JAR 打包成功，15 项单元及 HTTP 接口测试通过�
 ```text
 src/main/java/com/example/library/
 ├── LibraryApplication.java
-├── controller/LibraryController.java
+├── controller/
+│   ├── BookController.java
+│   ├── StudentController.java
+│   └── LoanController.java
 ├── model/Models.java
-├── service/LibraryService.java
+├── service/
+│   ├── BookService.java
+│   ├── StudentService.java
+│   ├── LoanService.java
+│   └── WriteTransactionExecutor.java
 ├── repository/LibraryRepository.java
 ├── exception/
 │   ├── BusinessException.java
@@ -74,14 +81,16 @@ src/main/java/com/example/library/
 
 - `controller`：HTTP 接口、入参校验与接口注释。
 - `model`：请求、响应及分页数据定义。
-- `service`：业务规则、事务与重试。
+- `service`：BookService 处理图书录入/查询，StudentService 处理学生录入/身份解析，LoanService 处理借阅/归还/当前借阅。WriteTransactionExecutor 复用写事务与重试逻辑。
 - `repository`：参数化 SQL 与数据库访问。
 - `exception`：业务异常与统一异常响应。
 - `filter`：请求 ID 生成与追踪。
 - `src/main/resources/db/migration/`：Flyway 数据库迁移。
 - `src/test/java/com/example/library/`：分别在 controller、service、integration 包中组织接口、业务及数据库测试。
 
-事务通过 TransactionTemplate 显式执行，避免同类调用导致声明式事务失效。隔离级别 READ COMMITTED，统一先锁图书再锁借阅。数据库时钟生成借还时间，确保 Loan 的 borrow_time / return_time 与对应 update_time 完全一致。未实现图书/读者修改接口，未来新增信息更新时必须同步设置 update_time。
+三个 Controller 分别仅处理图书、学生和借阅接口；LoanController 额外调用 StudentService 解析演示身份。各 Service 直接调用 Repository，借阅与库存修改仍在同一事务内。
+
+事务通过共享 WriteTransactionExecutor 中的 TransactionTemplate 显式执行，避免同类调用导致声明式事务失效。隔离级别 READ COMMITTED，统一先锁图书再锁借阅。数据库时钟生成借还时间，确保 Loan 的 borrow_time / return_time 与对应 update_time 完全一致。未实现图书/读者修改接口，未来新增信息更新时必须同步设置 update_time。
 
 图书列表直接复用 Book DTO，因此比下方最小 API 示例多返回 description 和 create_time。当前版本以 Controller 的 JavaDoc、Models 及本 README 提供接口定义，没有启用 Swagger 页面。身份头只模拟身份，不代表生产认证。数据库连接不可用返回 503，提交结果未知时不自动重试。
 

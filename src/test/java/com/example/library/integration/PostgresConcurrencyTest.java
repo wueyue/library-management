@@ -1,6 +1,8 @@
 package com.example.library.integration;
 
-import com.example.library.service.LibraryService;
+import com.example.library.service.BookService;
+import com.example.library.service.StudentService;
+import com.example.library.service.LoanService;
 import com.example.library.exception.BusinessException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -24,7 +26,9 @@ class PostgresConcurrencyTest {
         r.add("spring.datasource.username",()->System.getenv().getOrDefault("TEST_DB_USER","library"));
         r.add("spring.datasource.password",()->System.getenv().getOrDefault("TEST_DB_PASSWORD","library"));
     }
-    @Autowired LibraryService service;
+    @Autowired BookService books;
+    @Autowired StudentService students;
+    @Autowired LoanService loans;
     @Autowired JdbcTemplate jdbc;
     UUID book;
     List<UUID> readers;
@@ -56,58 +60,58 @@ class PostgresConcurrencyTest {
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM (SELECT reader_id FROM loans WHERE book_id=? AND return_time IS NULL GROUP BY reader_id HAVING count(*)>1) t",Integer.class,book));
     }
     @Test void lastCopyOnlyOneWinner() throws Exception {
-        var results=parallel(i->service.borrow(readers.get(i),book));
+        var results=parallel(i->loans.borrow(readers.get(i),book));
         assertEquals(1,results.stream().filter(Loan.class::isInstance).count());
         assertEquals(19,results.stream().filter("BOOK_OUT_OF_STOCK"::equals).count());stock(0);
     }
     @Test void sameReaderOnlyBorrowsOnce() throws Exception {
         jdbc.update("UPDATE books SET total_copies=20,available_copies=20 WHERE id=?",book);
-        var results=parallel(i->service.borrow(readers.getFirst(),book));
+        var results=parallel(i->loans.borrow(readers.getFirst(),book));
         assertEquals(1,results.stream().filter(Loan.class::isInstance).count());
         assertEquals(19,results.stream().filter("BOOK_ALREADY_BORROWED"::equals).count());stock(19);
     }
     @Test void parallelReturnOnlyReleasesOneCopy() throws Exception {
-        var loan=service.borrow(readers.getFirst(),book);
-        var results=parallel(i->service.returnBook(readers.getFirst(),loan.id()));
+        var loan=loans.borrow(readers.getFirst(),book);
+        var results=parallel(i->loans.returnBook(readers.getFirst(),loan.id()));
         assertTrue(results.stream().allMatch(Loan.class::isInstance));
         assertEquals(1,results.stream().map(v->((Loan)v).returnTime()).distinct().count());stock(1);
-        assertEquals("BORROWED",service.borrow(readers.getFirst(),book).status());stock(0);
+        assertEquals("BORROWED",loans.borrow(readers.getFirst(),book).status());stock(0);
     }
     @Test void insertFailureRollsBackStock() {
         // 真实 FK 错误发生于扣库存之后，整笔事务必须回滚。
-        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->service.borrow(UUID.randomUUID(),book));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->loans.borrow(UUID.randomUUID(),book));
         stock(1);
     }
     @Test void returnStockFailureRollsBackLoan() {
-        var loan=service.borrow(readers.getFirst(),book);
+        var loan=loans.borrow(readers.getFirst(),book);
         // 注入跨表不一致，使库存增加失败。归还标记必须随事务回滚。
         jdbc.update("UPDATE books SET available_copies=total_copies WHERE id=?",book);
-        assertThrows(IllegalStateException.class,()->service.returnBook(readers.getFirst(),loan.id()));
+        assertThrows(IllegalStateException.class,()->loans.returnBook(readers.getFirst(),loan.id()));
         assertNull(jdbc.queryForObject("SELECT return_time FROM loans WHERE id=?",java.time.OffsetDateTime.class,loan.id()));
         jdbc.update("UPDATE books SET available_copies=0 WHERE id=?",book);stock(0);
     }
     @Test void otherReaderCannotReturnLoan() {
-        var loan=service.borrow(readers.getFirst(),book);
-        var e=assertThrows(BusinessException.class,()->service.returnBook(readers.get(1),loan.id()));
+        var loan=loans.borrow(readers.getFirst(),book);
+        var e=assertThrows(BusinessException.class,()->loans.returnBook(readers.get(1),loan.id()));
         assertEquals("LOAN_NOT_FOUND",e.getCode());stock(0);
     }
     @Test void enteredStudentAndBookCanBorrowAndReturn() {
-        var student=service.createStudent(new CreateStudentRequest("  新学生  ","  "+UUID.randomUUID()+"  "));
+        var student=students.createStudent(new CreateStudentRequest("  新学生  ","  "+UUID.randomUUID()+"  "));
         readers.add(student.id());
-        var created=service.createBook(new CreateBookRequest("  Java 入门  ","作者",null,2));
+        var created=books.createBook(new CreateBookRequest("  Java 入门  ","作者",null,2));
         try {
             assertEquals("新学生",student.name());
             assertEquals(student.createTime(),student.updateTime());
             assertEquals("Java 入门",created.title());
             assertEquals(2,created.availableCopies());
             assertEquals(created.createTime(),created.updateTime());
-            assertEquals(student.id(),service.authenticate(student.id().toString()));
-            var loan=service.borrow(student.id(),created.id());
-            assertEquals(1,service.book(created.id()).availableCopies());
-            assertEquals(1,service.current(student.id(),1,20).items().size());
-            assertEquals("RETURNED",service.returnBook(student.id(),loan.id()).status());
-            assertEquals(2,service.book(created.id()).availableCopies());
-            assertTrue(service.current(student.id(),1,20).items().isEmpty());
+            assertEquals(student.id(),students.authenticate(student.id().toString()));
+            var loan=loans.borrow(student.id(),created.id());
+            assertEquals(1,books.book(created.id()).availableCopies());
+            assertEquals(1,loans.current(student.id(),1,20).items().size());
+            assertEquals("RETURNED",loans.returnBook(student.id(),loan.id()).status());
+            assertEquals(2,books.book(created.id()).availableCopies());
+            assertTrue(loans.current(student.id(),1,20).items().isEmpty());
         } finally {
             jdbc.update("DELETE FROM loans WHERE book_id=?",created.id());
             jdbc.update("DELETE FROM books WHERE id=?",created.id());
@@ -115,12 +119,12 @@ class PostgresConcurrencyTest {
     }
     @Test void studentNumberIsUniqueButNamesMayRepeat() {
         String number=UUID.randomUUID().toString();
-        var first=service.createStudent(new CreateStudentRequest("同名学生",number));
+        var first=students.createStudent(new CreateStudentRequest("同名学生",number));
         readers.add(first.id());
         assertEquals(number,first.studentNumber());
         assertThrows(org.springframework.dao.DuplicateKeyException.class,
-            ()->service.createStudent(new CreateStudentRequest("另一学生","  "+number+"  ")));
-        var second=service.createStudent(new CreateStudentRequest("同名学生",UUID.randomUUID().toString()));
+            ()->students.createStudent(new CreateStudentRequest("另一学生","  "+number+"  ")));
+        var second=students.createStudent(new CreateStudentRequest("同名学生",UUID.randomUUID().toString()));
         readers.add(second.id());
         assertNotEquals(first.id(),second.id());
     }

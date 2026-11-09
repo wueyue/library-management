@@ -13,10 +13,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static com.example.library.model.Models.*;
 
-class LibraryServiceTest {
+class LoanServiceTest {
     LibraryRepository repo;
     PlatformTransactionManager manager;
-    LibraryService service;
+    LoanService service;
+    StudentService students;
     UUID reader=UUID.randomUUID(), book=UUID.randomUUID(), id=UUID.randomUUID();
     Loan loan(boolean returned) {
         var now=OffsetDateTime.now();
@@ -25,7 +26,9 @@ class LibraryServiceTest {
     @BeforeEach void setup() {
         repo=mock(LibraryRepository.class); manager=mock(PlatformTransactionManager.class);
         when(manager.getTransaction(any(TransactionDefinition.class))).thenReturn(new SimpleTransactionStatus());
-        service=new LibraryService(repo,manager);
+        var transactions=new WriteTransactionExecutor(repo,manager);
+        service=new LoanService(repo,transactions);
+        students=new StudentService(repo,transactions);
     }
     @Test void borrowLocksBeforeStockAndCreation() {
         when(repo.decrement(book)).thenReturn(1);
@@ -77,8 +80,8 @@ class LibraryServiceTest {
         verify(manager).rollback(any());
     }
     @Test void invalidIdentityRejectedBeforeDatabaseAccess() {
-        assertEquals(401,assertThrows(BusinessException.class,()->service.authenticate(null)).getStatus());
-        assertEquals(401,assertThrows(BusinessException.class,()->service.authenticate("invalid")).getStatus());
+        assertEquals(401,assertThrows(BusinessException.class,()->students.authenticate(null)).getStatus());
+        assertEquals(401,assertThrows(BusinessException.class,()->students.authenticate("invalid")).getStatus());
         verifyNoInteractions(repo);
     }
 }
